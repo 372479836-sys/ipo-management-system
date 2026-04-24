@@ -10,7 +10,7 @@ import ExcelImport from '@/components/ExcelImport';
 type ViewTab = 'daily' | 'weekly' | 'monthly';
 
 export default function GanttPage() {
-  const { data, loading, error, hasImported, addGanttCell, removeGanttCell } = useIpoData();
+  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell } = useIpoData();
   const { workstreams, tasks, ganttCells } = data;
   const [activeTab, setActiveTab] = useState<ViewTab>('daily');
 
@@ -109,6 +109,7 @@ export default function GanttPage() {
             ganttCells={ganttCells}
             onAddMarker={handleAddMarker}
             onRemoveCell={handleRemoveCell}
+            onMoveCell={moveGanttCell}
           />
           <div className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
             <span className="inline-flex items-center gap-3 flex-wrap">
@@ -117,7 +118,7 @@ export default function GanttPage() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-amber-500" /> 关键节点</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-brand-500" /> 事件</span>
               <span className="text-slate-300">|</span>
-              右键单元格可标注节点 · 点击标注可删除
+              右键单元格可标注节点 · 点击标注可删除 · 拖拽标注可调整日期
             </span>
           </div>
         </>

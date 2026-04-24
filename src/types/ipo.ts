@@ -17,6 +17,7 @@ export interface Task {
   currentBlocker: string;
   nextStep: string;
   remark?: string;
+  assignee?: string;
   status: TaskStatus;
 }
 

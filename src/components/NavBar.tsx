@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useIpoData } from '@/context/IpoDataContext';
@@ -16,8 +16,9 @@ const NAV_ITEMS = [
 export default function NavBar() {
   const pathname = usePathname();
   const { isLocalMode, setLocalMode, syncToCloud, loading } = useIpoData();
-  const [syncing, setSyncing] = React.useState(false);
-  const [syncMsg, setSyncMsg] = React.useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -36,14 +37,16 @@ export default function NavBar() {
   return (
     <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200/60 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
+        {/* Left: logo + nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-1.5 text-brand-700 font-bold text-sm">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span>IPO 跟踪</span>
+            <span className="hidden sm:inline">IPO 跟踪</span>
           </Link>
-          <nav className="flex gap-1">
+          {/* Desktop nav */}
+          <nav className="hidden md:flex gap-1">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
               return (
@@ -64,14 +67,26 @@ export default function NavBar() {
               );
             })}
           </nav>
+          {/* Mobile hamburger */}
+          <button
+            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+            onClick={() => setMobileOpen(!mobileOpen)}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {mobileOpen
+                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          <GlobalSearch />
-          {/* 本地/云端模式切换 */}
+        {/* Right: search + mode */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden sm:block"><GlobalSearch /></div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setLocalMode(!isLocalMode)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 isLocalMode
                   ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
                   : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -82,14 +97,16 @@ export default function NavBar() {
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  本地模式
+                  <span className="hidden sm:inline">本地模式</span>
+                  <span className="sm:hidden">本地</span>
                 </>
               ) : (
                 <>
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                   </svg>
-                  云端模式
+                  <span className="hidden sm:inline">云端模式</span>
+                  <span className="sm:hidden">云端</span>
                 </>
               )}
             </button>
@@ -97,21 +114,48 @@ export default function NavBar() {
               <button
                 onClick={handleSync}
                 disabled={syncing || loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
               >
                 <svg className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {syncing ? '同步中...' : '同步到云端'}
+                <span className="hidden sm:inline">{syncing ? '同步中...' : '同步到云端'}</span>
+                <span className="sm:hidden">{syncing ? '...' : '同步'}</span>
               </button>
             )}
             {syncMsg && (
               <span className={`text-xs ${syncMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
             )}
           </div>
-          <span className="text-xs text-slate-400">Project Yangtze</span>
+          <span className="text-xs text-slate-400 hidden lg:inline">Project Yangtze</span>
         </div>
       </div>
+      {/* Mobile dropdown nav */}
+      {mobileOpen && (
+        <div className="md:hidden border-t border-slate-200/60 bg-white/95 backdrop-blur-lg px-4 py-2 space-y-1">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-brand-50 text-brand-700 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                </svg>
+                {item.label}
+              </Link>
+            );
+          })}
+          <div className="pt-1"><GlobalSearch /></div>
+        </div>
+      )}
     </header>
   );
 }

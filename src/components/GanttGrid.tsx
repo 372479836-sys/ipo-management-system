@@ -9,6 +9,7 @@ interface GanttGridProps {
   ganttCells: GanttCell[];
   onAddMarker?: (taskId: string, date: string, type: 'start' | 'ddl' | 'keynode', label: string) => void;
   onRemoveCell?: (cellId: string) => void;
+  onMoveCell?: (cellId: string, newDate: string) => void;
 }
 
 interface WeekDef {
@@ -114,7 +115,7 @@ function CellContextMenu({
   );
 }
 
-export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell }: GanttGridProps) {
+export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell, onMoveCell }: GanttGridProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(new Set());
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string } | null>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -406,12 +407,23 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                               } ${date === today ? 'bg-brand-50/30' : ''}`}
                               style={{ width: COL_W }}
                               onContextMenu={(e) => handleContextMenu(e, task.id, date)}
+                              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const cellId = e.dataTransfer.getData('text/cell-id');
+                                if (cellId && onMoveCell) onMoveCell(cellId, date);
+                              }}
                             >
                               {cell && (
                                 <div
+                                  draggable={!!(onMoveCell && (cellType === 'start' || cellType === 'ddl' || cellType === 'keynode'))}
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/cell-id', cell.id);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                  }}
                                   className={`absolute inset-0.5 rounded flex items-center justify-center text-white text-[8px] font-medium leading-tight px-0.5 ${
                                     MARKER_STYLES[cellType] || 'bg-brand-500'
-                                  } ${onRemoveCell ? 'cursor-pointer' : ''}`}
+                                  } ${onRemoveCell ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                   style={{ zIndex: 2 }}
                                   title={`${cell.label} (${cell.date})${cellType !== 'event' ? ' [' + cellType + ']' : ''}\n点击删除`}
                                   onClick={() => {

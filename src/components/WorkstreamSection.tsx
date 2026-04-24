@@ -154,6 +154,7 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">当前进度</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">下一步计划</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[200px]">备注</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">负责人</th>
               <th className="text-center py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">状态</th>
             </tr>
           </thead>
@@ -199,6 +200,14 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
                       className="text-slate-600 text-xs"
                       multiline
                       placeholder="添加备注..."
+                    />
+                  </td>
+                  <td className="py-2 px-3">
+                    <EditableCell
+                      value={task.assignee || ''}
+                      onSave={v => handleUpdate(task.id, { assignee: v })}
+                      className="text-slate-600 text-xs"
+                      placeholder="指定负责人..."
                     />
                   </td>
                   <td className="py-2 px-3 text-center">

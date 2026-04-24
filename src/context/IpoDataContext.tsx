@@ -46,6 +46,7 @@ interface IpoDataContextType {
   updateGanttCell: (cellId: string, updates: Partial<GanttCell>) => void;
   addGanttCell: (cell: GanttCell) => void;
   removeGanttCell: (cellId: string) => void;
+  moveGanttCell: (cellId: string, newDate: string) => void;
 }
 
 const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [] };
@@ -101,6 +102,7 @@ async function fetchProjectData(): Promise<IpoProjectData> {
     currentBlocker: r.current_blocker || '',
     nextStep: r.next_step || '',
     remark: r.remark || '',
+    assignee: r.assignee || '',
     status: r.status || 'pending',
   }));
 
@@ -213,6 +215,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
           current_blocker: t.currentBlocker || null,
           next_step: t.nextStep || null,
           remark: t.remark || null,
+          assignee: t.assignee || null,
           status: t.status,
         };
       });
@@ -285,6 +288,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     if (updates.currentBlocker !== undefined) dbUpdates.current_blocker = updates.currentBlocker;
     if (updates.nextStep !== undefined) dbUpdates.next_step = updates.nextStep;
     if (updates.remark !== undefined) dbUpdates.remark = updates.remark;
+    if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.workstreamId !== undefined) dbUpdates.workstream_id = updates.workstreamId;
 
@@ -322,6 +326,21 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
       if (isLocalMode) saveLocalData(next);
       return next;
     });
+  };
+
+  const moveGanttCell = (cellId: string, newDate: string) => {
+    setData(prev => {
+      const next = {
+        ...prev,
+        ganttCells: prev.ganttCells.map(c => c.id === cellId ? { ...c, date: newDate } : c),
+      };
+      if (isLocalMode) saveLocalData(next);
+      return next;
+    });
+    // 云端也更新
+    if (!isLocalMode) {
+      supabase.from('gantt_cells').update({ cell_date: newDate }).eq('id', cellId).then();
+    }
   };
 
   /** 把 localStorage 数据同步到 MemFire 云端 */
@@ -410,6 +429,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
       updateGanttCell,
       addGanttCell,
       removeGanttCell,
+      moveGanttCell,
     }}>
       {children}
     </IpoDataContext.Provider>
