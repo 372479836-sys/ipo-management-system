@@ -127,14 +127,26 @@ function extractTimelineDates(dateRow: RawRow, startCol: number): Record<number,
   return map;
 }
 
+function inferCellType(label: string): GanttCell['type'] {
+  const lower = label.toLowerCase();
+  // start 标记
+  if (lower === '开始' || lower === 'start' || lower === '▶ 开始' || lower.includes('启动')) return 'start';
+  // ddl 标记
+  if (lower === 'ddl' || lower === '截止' || lower === '⏰ ddl' || lower.includes('deadline') || lower.includes('截止日')) return 'ddl';
+  // keynode 标记
+  if (lower === '关键' || lower === '关键节点' || lower === '⭐ 关键' || lower === 'keynode' || lower === 'key node' || lower.includes('关键节点')) return 'keynode';
+  // milestone
+  if (lower.includes('签署') || lower.includes('定稿') || lower.includes('递交') || lower.includes('a1') || lower.includes('完成')) return 'milestone';
+  return 'event';
+}
+
 function extractGanttCells(row: RawRow, taskId: string, timelineDates: Record<number, string>): GanttCell[] {
   const result: GanttCell[] = [];
   Object.entries(timelineDates).forEach(([colIndexStr, date]) => {
     const colIndex = Number(colIndexStr);
     const label = normalizeCell(row[colIndex] ?? '');
     if (!label) return;
-    const lower = label.toLowerCase();
-    const type = (lower.includes('签署') || lower.includes('定稿') || lower.includes('递交') || lower.includes('a1') || lower.includes('完成')) ? 'milestone' : 'event';
+    const type = inferCellType(label);
     result.push({ id: `gc-${taskId}-${date}-${colIndex}`, taskId, date, label, type });
   });
   return result;
