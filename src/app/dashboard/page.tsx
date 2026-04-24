@@ -126,12 +126,18 @@ export default function DashboardPage() {
       {/* 进度条 */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">总体进度</h2>
-        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+        <div className="w-full bg-slate-100 rounded-full h-5 overflow-hidden relative">
           {stats.total > 0 && (
             <div className="flex h-full">
-              <div className="bg-green-500 transition-all duration-500" style={{ width: `${(stats.completed / stats.total) * 100}%` }} />
-              <div className="bg-blue-500 transition-all duration-500" style={{ width: `${(stats.inProgress / stats.total) * 100}%` }} />
-              <div className="bg-red-500 transition-all duration-500" style={{ width: `${(stats.blocked / stats.total) * 100}%` }} />
+              <div className="bg-green-500 transition-all duration-500 flex items-center justify-center" style={{ width: `${(stats.completed / stats.total) * 100}%` }}>
+                {stats.completed > 0 && <span className="text-[10px] text-white font-bold">{Math.round((stats.completed / stats.total) * 100)}%</span>}
+              </div>
+              <div className="bg-blue-500 transition-all duration-500 flex items-center justify-center" style={{ width: `${(stats.inProgress / stats.total) * 100}%` }}>
+                {stats.inProgress > 0 && <span className="text-[10px] text-white font-bold">{Math.round((stats.inProgress / stats.total) * 100)}%</span>}
+              </div>
+              <div className="bg-red-500 transition-all duration-500 flex items-center justify-center" style={{ width: `${(stats.blocked / stats.total) * 100}%` }}>
+                {stats.blocked > 0 && <span className="text-[10px] text-white font-bold">{Math.round((stats.blocked / stats.total) * 100)}%</span>}
+              </div>
             </div>
           )}
         </div>

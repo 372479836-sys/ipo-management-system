@@ -114,6 +114,13 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
     return parts.length > 0 ? parts.join(' · ') : '';
   };
 
+  /* 卡点置顶排序 */
+  const sortedTasks = [...tasks].sort((a, b) => {
+    if (a.status === 'blocked' && b.status !== 'blocked') return -1;
+    if (a.status !== 'blocked' && b.status === 'blocked') return 1;
+    return 0;
+  });
+
   return (
     <div className="mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
       <div
@@ -151,16 +158,20 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
             </tr>
           </thead>
           <tbody>
-            {tasks.map((task) => {
+            {sortedTasks.map((task) => {
               const parties = getParties(task);
+              const isBlocked = task.status === 'blocked';
               return (
-                <tr key={task.id} className="border-b border-slate-50 hover:bg-brand-50/30 transition-colors align-top">
+                <tr key={task.id} className={`border-b border-slate-50 hover:bg-brand-50/30 transition-colors align-top ${isBlocked ? 'bg-red-50/40 border-l-2 border-l-red-400' : ''}`}>
                   <td className="py-2 px-3">
-                    <EditableCell
-                      value={task.title}
-                      onSave={v => handleUpdate(task.id, { title: v })}
-                      className="font-medium text-slate-800 text-xs"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      {isBlocked && <span className="text-red-500 text-[10px]" title="卡点">⚠️</span>}
+                      <EditableCell
+                        value={task.title}
+                        onSave={v => handleUpdate(task.id, { title: v })}
+                        className="font-medium text-slate-800 text-xs"
+                      />
+                    </div>
                     {parties && (
                       <div className="text-[10px] text-slate-400 mt-0.5 px-1">{parties}</div>
                     )}

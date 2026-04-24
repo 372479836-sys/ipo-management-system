@@ -200,6 +200,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     onAddMarker(ctxMenu.taskId, ctxMenu.date, type, MARKER_LABELS[type]);
   };
 
+  const todayIdx = allDates.indexOf(today);
+
   const gridWidth = allDates.length * COL_W;
   const totalWidth = LEFT_W + gridWidth;
 
@@ -334,7 +336,14 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
           style={{ maxHeight: 'calc(100vh - 260px)' }}
           onScroll={() => syncScroll('main')}
         >
-          <div style={{ minWidth: totalWidth }}>
+          <div style={{ minWidth: totalWidth }} className="relative">
+            {/* 今日红色竖线 */}
+            {todayIdx >= 0 && (
+              <div
+                className="absolute top-0 bottom-0 z-[15] pointer-events-none"
+                style={{ left: LEFT_W + todayIdx * COL_W + COL_W / 2 - 1, width: 2, background: 'rgba(239,68,68,0.7)' }}
+              />
+            )}
             {/* 表头 sticky */}
             <div className="sticky top-0 z-20 bg-white" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
               {renderHeaderCols()}
