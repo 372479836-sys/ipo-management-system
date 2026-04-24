@@ -100,6 +100,7 @@ function StatusSelect({
 }
 
 export default function WorkstreamSection({ workstreamName, tasks, defaultOpen = true, onUpdateTask }: WorkstreamSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const completed = tasks.filter(t => t.status === 'completed').length;
   const total = tasks.length;
 
@@ -115,10 +116,16 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
 
   return (
     <div className="mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-        <div>
-          <h3 className="font-semibold text-slate-800 text-[13px]">{workstreamName}</h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">{completed}/{total} 项已完成</p>
+      <div
+        className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 cursor-pointer select-none hover:bg-slate-100/80 transition-colors"
+        onClick={() => setOpen(!open)}
+      >
+        <div className="flex items-center gap-2">
+          <span className={`text-slate-400 text-[11px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+          <div>
+            <h3 className="font-semibold text-slate-800 text-[13px]">{workstreamName}</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">{completed}/{total} 项已完成</p>
+          </div>
         </div>
         <div className="flex gap-1">
           {(['pending', 'in_progress', 'completed', 'blocked'] as TaskStatus[]).map((s) => {
@@ -132,7 +139,7 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
           })}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      {open && <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-white">
@@ -194,7 +201,7 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
             })}
           </tbody>
         </table>
-      </div>
+      </div>}
     </div>
   );
 }
