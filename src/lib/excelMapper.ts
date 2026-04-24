@@ -129,13 +129,10 @@ function extractTimelineDates(dateRow: RawRow, startCol: number): Record<number,
 
 function inferCellType(label: string): GanttCell['type'] {
   const lower = label.toLowerCase();
-  // start 标记
+  // 明确标记的优先
   if (lower === '开始' || lower === 'start' || lower === '▶ 开始' || lower.includes('启动')) return 'start';
-  // ddl 标记
   if (lower === 'ddl' || lower === '截止' || lower === '⏰ ddl' || lower.includes('deadline') || lower.includes('截止日')) return 'ddl';
-  // keynode 标记
   if (lower === '关键' || lower === '关键节点' || lower === '⭐ 关键' || lower === 'keynode' || lower === 'key node' || lower.includes('关键节点')) return 'keynode';
-  // milestone
   if (lower.includes('签署') || lower.includes('定稿') || lower.includes('递交') || lower.includes('a1') || lower.includes('完成')) return 'milestone';
   return 'event';
 }
@@ -149,6 +146,29 @@ function extractGanttCells(row: RawRow, taskId: string, timelineDates: Record<nu
     const type = inferCellType(label);
     result.push({ id: `gc-${taskId}-${date}-${colIndex}`, taskId, date, label, type });
   });
+
+  // 自动推断 start/ddl：如果该task没有明确标记的start/ddl，
+  // 则最早日期的cell标为start，最晚日期的cell标为ddl（需至少2个cell）
+  const hasExplicitStart = result.some(c => c.type === 'start');
+  const hasExplicitDdl = result.some(c => c.type === 'ddl');
+  if (!hasExplicitStart || !hasExplicitDdl) {
+    const sorted = [...result].sort((a, b) => a.date.localeCompare(b.date));
+    if (sorted.length >= 2) {
+      if (!hasExplicitStart) {
+        const first = result.find(c => c.id === sorted[0].id);
+        if (first && first.type !== 'keynode' && first.type !== 'milestone') {
+          first.type = 'start';
+        }
+      }
+      if (!hasExplicitDdl) {
+        const last = result.find(c => c.id === sorted[sorted.length - 1].id);
+        if (last && last.type !== 'keynode' && last.type !== 'milestone') {
+          last.type = 'ddl';
+        }
+      }
+    }
+  }
+
   return result;
 }
 
