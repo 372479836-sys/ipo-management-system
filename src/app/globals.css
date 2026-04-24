@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background-color: #f1f5f9;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 卡片通用样式 */
+.card {
+  @apply bg-white rounded-xl border border-slate-200/80 shadow-sm;
+}
+.card-hover {
+  @apply card transition-shadow hover:shadow-md;
+}
+
+/* 表格优化 */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+th {
+  @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
+}
+
+/* 页面标题 */
+h1 {
+  @apply text-2xl font-bold tracking-tight;
+  color: #0f172a;
+}
+
+/* 选中态高亮 */
+::selection {
+  background-color: rgba(59, 130, 246, 0.15);
+}
