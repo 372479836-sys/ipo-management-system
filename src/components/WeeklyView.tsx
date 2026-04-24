@@ -17,15 +17,15 @@ interface WeekDef {
 
 // 固定周次定义：W1(3/30-4/5) 到 W9(5/25-5/31)
 const WEEKS: WeekDef[] = [
-  { label: 'W1 (3/30-4/5)', start: '2026-03-30', end: '2026-04-05' },
-  { label: 'W2 (4/6-4/12)', start: '2026-04-06', end: '2026-04-12' },
-  { label: 'W3 (4/13-4/19)', start: '2026-04-13', end: '2026-04-19' },
-  { label: 'W4 (4/20-4/26)', start: '2026-04-20', end: '2026-04-26' },
-  { label: 'W5 (4/27-5/3)', start: '2026-04-27', end: '2026-05-03' },
-  { label: 'W6 (5/4-5/10)', start: '2026-05-04', end: '2026-05-10' },
-  { label: 'W7 (5/11-5/17)', start: '2026-05-11', end: '2026-05-17' },
-  { label: 'W8 (5/18-5/24)', start: '2026-05-18', end: '2026-05-24' },
-  { label: 'W9 (5/25-5/31)', start: '2026-05-25', end: '2026-05-31' },
+  { label: '3.30 周次 (3/30-4/5)', start: '2026-03-30', end: '2026-04-05' },
+  { label: '4.06 周次 (4/6-4/12)', start: '2026-04-06', end: '2026-04-12' },
+  { label: '4.13 周次 (4/13-4/19)', start: '2026-04-13', end: '2026-04-19' },
+  { label: '4.20 周次 (4/20-4/26)', start: '2026-04-20', end: '2026-04-26' },
+  { label: '4.27 周次 (4/27-5/3)', start: '2026-04-27', end: '2026-05-03' },
+  { label: '5.04 周次 (5/4-5/10)', start: '2026-05-04', end: '2026-05-10' },
+  { label: '5.11 周次 (5/11-5/17)', start: '2026-05-11', end: '2026-05-17' },
+  { label: '5.18 周次 (5/18-5/24)', start: '2026-05-18', end: '2026-05-24' },
+  { label: '5.25 周次 (5/25-5/31)', start: '2026-05-25', end: '2026-05-31' },
 ];
 
 const WS_COLORS = [
@@ -92,7 +92,7 @@ export default function WeeklyView({ workstreams, tasks, ganttCells }: WeeklyVie
                   : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600'
               }`}
             >
-              W{i + 1}
+              W{i + 1} ({w.label.split(' ')[0]})
             </button>
           ))}
         </div>

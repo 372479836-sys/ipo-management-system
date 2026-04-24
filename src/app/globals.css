@@ -8,6 +8,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   background-color: #f1f5f9;
   color: #1e293b;
+  font-size: 13px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -42,12 +43,12 @@ table {
   border-spacing: 0;
 }
 th {
-  @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
+  @apply text-[11px] font-semibold text-slate-500 uppercase tracking-wider;
 }
 
 /* 页面标题 */
 h1 {
-  @apply text-2xl font-bold tracking-tight;
+  @apply text-lg font-bold tracking-tight;
   color: #0f172a;
 }
 

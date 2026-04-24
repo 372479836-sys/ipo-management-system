@@ -28,9 +28,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+        <h1 className="text-lg font-bold text-slate-800">Dashboard</h1>
         {hasImported && (
-          <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
+          <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
         )}
       </div>
 
@@ -44,9 +44,9 @@ export default function DashboardPage() {
       </div>
 
       {/* 进度条 */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">总体进度</h2>
-        <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">总体进度</h2>
+        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
           {stats.total > 0 && (
             <div className="flex h-full">
               <div
@@ -64,7 +64,7 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-        <div className="flex gap-6 mt-3 text-xs text-slate-500">
+        <div className="flex gap-4 mt-2 text-[11px] text-slate-500">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />已完成 {Math.round((stats.completed / stats.total) * 100)}%</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />进行中 {Math.round((stats.inProgress / stats.total) * 100)}%</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />卡点 {Math.round((stats.blocked / stats.total) * 100)}%</span>
@@ -73,11 +73,11 @@ export default function DashboardPage() {
 
       {/* 各条线统计 */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">各条线事项分布</h2>
+        <div className="px-4 py-3 border-b border-slate-200">
+          <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">各条线事项分布</h2>
         </div>
-        <div className="p-6">
-          <div className="space-y-4">
+        <div className="p-4">
+          <div className="space-y-3">
             {wsStats.map((ws, idx) => {
               const pct = ws.total > 0 ? (ws.completed / ws.total) * 100 : 0;
               const colors = [
@@ -91,9 +91,9 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <div className={`w-2.5 h-2.5 rounded-full ${colors[idx % colors.length]}`} />
-                      <span className="text-sm font-medium text-slate-700">{ws.name}</span>
+                      <span className="text-xs font-medium text-slate-700">{ws.name}</span>
                     </div>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-[11px] text-slate-500">
                       {ws.completed}/{ws.total}
                       {ws.blocked > 0 && <span className="text-red-500 ml-2">⚠ {ws.blocked}个卡点</span>}
                     </span>

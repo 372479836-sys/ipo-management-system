@@ -16,6 +16,7 @@ export interface Task {
   currentProgress: string;
   currentBlocker: string;
   nextStep: string;
+  remark?: string;
   status: TaskStatus;
 }
 
@@ -24,7 +25,7 @@ export interface GanttCell {
   taskId: string;
   date: string;
   label?: string;
-  type?: 'milestone' | 'event' | 'progress';
+  type?: 'milestone' | 'event' | 'progress' | 'start' | 'ddl' | 'keynode';
 }
 
 export interface IpoProjectData {

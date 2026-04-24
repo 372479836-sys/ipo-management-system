@@ -100,6 +100,7 @@ async function fetchProjectData(): Promise<IpoProjectData> {
     currentProgress: r.current_progress || '',
     currentBlocker: r.current_blocker || '',
     nextStep: r.next_step || '',
+    remark: r.remark || '',
     status: r.status || 'pending',
   }));
 
@@ -211,6 +212,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
           current_progress: t.currentProgress || null,
           current_blocker: t.currentBlocker || null,
           next_step: t.nextStep || null,
+          remark: t.remark || null,
           status: t.status,
         };
       });
@@ -282,6 +284,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     if (updates.currentProgress !== undefined) dbUpdates.current_progress = updates.currentProgress;
     if (updates.currentBlocker !== undefined) dbUpdates.current_blocker = updates.currentBlocker;
     if (updates.nextStep !== undefined) dbUpdates.next_step = updates.nextStep;
+    if (updates.remark !== undefined) dbUpdates.remark = updates.remark;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.workstreamId !== undefined) dbUpdates.workstream_id = updates.workstreamId;
 
@@ -360,6 +363,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
           title: t.title, sponsor: t.sponsor || null, lawyer: t.lawyer || null,
           other_party: t.otherParty || null, current_progress: t.currentProgress || null,
           current_blocker: t.currentBlocker || null, next_step: t.nextStep || null,
+          remark: t.remark || null,
           status: t.status,
         };
       });

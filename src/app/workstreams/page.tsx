@@ -6,15 +6,15 @@ import WorkstreamSection from '@/components/WorkstreamSection';
 import ExcelImport from '@/components/ExcelImport';
 
 export default function WorkstreamsPage() {
-  const { data, hasImported } = useIpoData();
+  const { data, hasImported, updateTask } = useIpoData();
   const { workstreams, tasks } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">条线视图</h1>
+        <h1 className="text-lg font-bold text-slate-800">条线视图</h1>
         {hasImported && (
-          <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
+          <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
         )}
       </div>
 
@@ -29,6 +29,7 @@ export default function WorkstreamsPage() {
             key={ws.id}
             workstreamName={ws.name}
             tasks={wsTasks}
+            onUpdateTask={updateTask}
           />
         );
       })}
