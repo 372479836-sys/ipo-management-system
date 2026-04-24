@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { GanttCell, Task, Workstream } from '@/types/ipo';
 
 interface GanttGridProps {
@@ -30,12 +30,6 @@ const WEEKS: WeekDef[] = [
   { label: '5.25 周次', short: '5.25', start: '2026-05-25', end: '2026-05-31' },
 ];
 
-const MONTHS = [
-  { label: '3月', start: '2026-03-30', end: '2026-03-31' },
-  { label: '4月', start: '2026-04-01', end: '2026-04-30' },
-  { label: '5月', start: '2026-05-01', end: '2026-05-31' },
-];
-
 const WS_COLORS = [
   'bg-indigo-500', 'bg-violet-500', 'bg-cyan-500', 'bg-emerald-500',
   'bg-amber-500', 'bg-rose-500', 'bg-orange-500', 'bg-teal-500',
@@ -58,7 +52,10 @@ const MARKER_LABELS: Record<string, string> = {
   keynode: '⭐ 关键',
 };
 
-const COL_W = 36; // px per day column
+const COL_W = 36;
+const ROW_H = 28;
+const LEFT_W = 192;
+const HEADER_H = 64; // 周次22 + 日期22 + 周几20
 
 function getDatesInRange(start: string, end: string): string[] {
   const dates: string[] = [];
@@ -120,7 +117,18 @@ function CellContextMenu({
 export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell }: GanttGridProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(new Set());
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string } | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncing = useRef(false);
+
+  const syncScroll = useCallback((source: 'top' | 'main') => {
+    if (isSyncing.current) return;
+    isSyncing.current = true;
+    const from = source === 'top' ? topScrollRef.current : mainScrollRef.current;
+    const to = source === 'top' ? mainScrollRef.current : topScrollRef.current;
+    if (from && to) to.scrollLeft = from.scrollLeft;
+    requestAnimationFrame(() => { isSyncing.current = false; });
+  }, []);
 
   const toggleWeek = (idx: number) => {
     setSelectedWeeks(prev => {
@@ -144,10 +152,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
         dates.push(...getDatesInRange(w.start, w.end));
       });
     }
-
     const diMap: Record<string, number> = {};
     dates.forEach((d, i) => { diMap[d] = i; });
-
     const map: Record<string, GanttCell> = {};
     ganttCells.forEach((c) => { map[`${c.taskId}_${c.date}`] = c; });
     const wsMap: Record<string, Task[]> = {};
@@ -159,7 +165,6 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     return { allDates: dates, dateIndexMap: diMap, cellMap: map, wsTaskMap: wsMap };
   }, [workstreams, tasks, ganttCells, selectedWeeks, showAll]);
 
-  // 计算每个task的start→ddl连线范围
   const taskBarRanges = useMemo(() => {
     const ranges: Record<string, { startIdx: number; endIdx: number }> = {};
     tasks.forEach(t => {
@@ -196,8 +201,88 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
   };
 
   const gridWidth = allDates.length * COL_W;
-  const ROW_H = 28; // px per row
-  const LEFT_W = 192; // px left sidebar
+  const totalWidth = LEFT_W + gridWidth;
+
+  /* ---- 渲染表头3行的helper ---- */
+  const renderHeaderCols = () => (
+    <>
+      {/* 周次行 */}
+      <div className="flex" style={{ height: 22 }}>
+        <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30, background: '#f8fafc' }}>
+          <div className="h-full flex items-center px-3">
+            <span className="text-[10px] font-medium text-slate-400">周次</span>
+          </div>
+        </div>
+        <div className="flex">
+          {WEEKS.map((w) => {
+            const wDates = allDates.filter(d => d >= w.start && d <= w.end);
+            if (wDates.length === 0) return null;
+            return (
+              <div
+                key={w.short}
+                className="flex-shrink-0 flex items-center justify-center text-[10px] font-semibold text-brand-600 border-b border-r border-slate-300 bg-brand-50/40"
+                style={{ width: wDates.length * COL_W }}
+              >
+                {w.label}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* 日期行 */}
+      <div className="flex" style={{ height: 22 }}>
+        <div className="flex-shrink-0 border-b border-r border-slate-200 bg-white" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30, background: '#fff' }}>
+          <div className="h-full flex items-center px-3">
+            <span className="text-[10px] font-medium text-slate-400">日期</span>
+          </div>
+        </div>
+        <div className="flex">
+          {allDates.map((date) => {
+            const isBoundary = weekBoundaries.has(date);
+            return (
+              <div
+                key={date}
+                className={`flex-shrink-0 flex items-center justify-center text-[9px] border-b border-r ${
+                  isBoundary ? 'border-r-slate-300' : 'border-r-slate-100'
+                } ${date === today ? 'bg-brand-100 font-bold text-brand-700' : 'text-slate-500'
+                } ${isWeekend(date) ? 'bg-slate-100/50' : 'bg-slate-50'}`}
+                style={{ width: COL_W }}
+              >
+                {formatShort(date)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* 周几行 */}
+      <div className="flex" style={{ height: 20 }}>
+        <div className="flex-shrink-0 border-b border-r border-slate-200 bg-white" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30, background: '#fff' }}>
+          <div className="h-full flex items-center px-3">
+            <span className="text-[10px] font-medium text-slate-400">周几</span>
+          </div>
+        </div>
+        <div className="flex">
+          {allDates.map((date) => {
+            const isBoundary = weekBoundaries.has(date);
+            const weekend = isWeekend(date);
+            return (
+              <div
+                key={`day-${date}`}
+                className={`flex-shrink-0 flex items-center justify-center text-[9px] border-b border-r ${
+                  isBoundary ? 'border-r-slate-300' : 'border-r-slate-100'
+                } ${weekend ? 'bg-slate-100/50 text-slate-400' : 'bg-slate-50 text-slate-500'} ${
+                  date === today ? 'bg-brand-100 font-bold text-brand-700' : ''
+                }`}
+                style={{ width: COL_W }}
+              >
+                {getDayName(date)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div className="space-y-3">
@@ -230,122 +315,37 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
         ))}
       </div>
 
-      {/* 甘特网格 — 可左右滚动 */}
+      {/* 甘特网格 */}
       <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto" ref={scrollRef}>
-          <div style={{ minWidth: LEFT_W + gridWidth }}>
-            {/* === 月份行（仅全部模式） === */}
-            {showAll && (
-              <div className="flex" style={{ height: 22 }}>
-                <div className="flex-shrink-0 bg-slate-100 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 20 }}>
-                  <div className="h-full flex items-center px-3">
-                    <span className="text-[10px] font-medium text-slate-400">月份</span>
-                  </div>
-                </div>
-                <div className="flex">
-                  {MONTHS.map(m => {
-                    const mDates = allDates.filter(d => d >= m.start && d <= m.end);
-                    if (mDates.length === 0) return null;
-                    return (
-                      <div
-                        key={m.label}
-                        className="flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-slate-600 border-b border-r border-slate-300 bg-slate-100"
-                        style={{ width: mDates.length * COL_W }}
-                      >
-                        {m.label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+        {/* 顶部滚动条 */}
+        <div
+          ref={topScrollRef}
+          className="overflow-x-auto"
+          style={{ height: 12 }}
+          onScroll={() => syncScroll('top')}
+        >
+          <div style={{ width: totalWidth, height: 1 }} />
+        </div>
 
-            {/* === 周次行（仅全部模式） === */}
-            {showAll && (
-              <div className="flex" style={{ height: 22 }}>
-                <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 20 }}>
-                  <div className="h-full flex items-center px-3">
-                    <span className="text-[10px] font-medium text-slate-400">周次</span>
-                  </div>
-                </div>
-                <div className="flex">
-                  {WEEKS.map((w) => {
-                    const wDates = allDates.filter(d => d >= w.start && d <= w.end);
-                    if (wDates.length === 0) return null;
-                    return (
-                      <div
-                        key={w.short}
-                        className="flex-shrink-0 flex items-center justify-center text-[10px] font-semibold text-brand-600 border-b border-r border-slate-300 bg-brand-50/40"
-                        style={{ width: wDates.length * COL_W }}
-                      >
-                        {w.label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* === 日期轴 === */}
-            <div className="flex" style={{ height: 22 }}>
-              <div className="flex-shrink-0 border-b border-r border-slate-200 bg-white" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 20 }}>
-                <div className="h-full flex items-center px-3">
-                  <span className="text-[10px] font-medium text-slate-400">日期</span>
-                </div>
-              </div>
-              <div className="flex">
-                {allDates.map((date) => {
-                  const isBoundary = weekBoundaries.has(date);
-                  return (
-                    <div
-                      key={date}
-                      className={`flex-shrink-0 flex items-center justify-center text-[9px] border-b border-r ${
-                        isBoundary ? 'border-r-slate-300' : 'border-r-slate-100'
-                      } ${
-                        date === today ? 'bg-brand-100 font-bold text-brand-700' : 'text-slate-500'
-                      } ${isWeekend(date) ? 'bg-slate-100/50' : 'bg-slate-50'}`}
-                      style={{ width: COL_W }}
-                    >
-                      {formatShort(date)}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            {/* === 周几行 === */}
-            <div className="flex" style={{ height: 20 }}>
-              <div className="flex-shrink-0 border-b border-r border-slate-200 bg-white" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 20 }}>
-                <div className="h-full flex items-center px-3">
-                  <span className="text-[10px] font-medium text-slate-400">周几</span>
-                </div>
-              </div>
-              <div className="flex">
-                {allDates.map((date) => {
-                  const isBoundary = weekBoundaries.has(date);
-                  const weekend = isWeekend(date);
-                  return (
-                    <div
-                      key={`day-${date}`}
-                      className={`flex-shrink-0 flex items-center justify-center text-[9px] border-b border-r ${
-                        isBoundary ? 'border-r-slate-300' : 'border-r-slate-100'
-                      } ${weekend ? 'bg-slate-100/50 text-slate-400' : 'bg-slate-50 text-slate-500'} ${
-                        date === today ? 'bg-brand-100 font-bold text-brand-700' : ''
-                      }`}
-                      style={{ width: COL_W }}
-                    >
-                      {getDayName(date)}
-                    </div>
-                  );
-                })}
-              </div>
+        {/* 主体：sticky表头 + 可滚动数据 */}
+        <div
+          ref={mainScrollRef}
+          className="overflow-x-auto overflow-y-auto"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+          onScroll={() => syncScroll('main')}
+        >
+          <div style={{ minWidth: totalWidth }}>
+            {/* 表头 sticky */}
+            <div className="sticky top-0 z-20 bg-white" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+              {renderHeaderCols()}
             </div>
 
-            {/* === 数据行 === */}
+            {/* 数据行 */}
             {workstreams.map((ws, wsIdx) => (
               <React.Fragment key={ws.id}>
                 {/* 条线标题行 */}
                 <div className="flex" style={{ height: ROW_H }}>
-                  <div className="flex-shrink-0 bg-slate-100 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 20 }}>
+                  <div className="flex-shrink-0 bg-slate-100 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
                     <div className="h-full flex items-center px-3 gap-1.5">
                       <div className={`w-1.5 h-1.5 rounded-full ${WS_COLORS[wsIdx % WS_COLORS.length]}`} />
                       <span className="text-[11px] font-semibold text-slate-700">{ws.name}</span>
@@ -367,15 +367,12 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                   const bar = taskBarRanges[task.id];
                   return (
                     <div key={task.id} className="flex" style={{ height: ROW_H }}>
-                      {/* 左侧任务名 */}
-                      <div className="flex-shrink-0 bg-white border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 20 }}>
+                      <div className="flex-shrink-0 bg-white border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
                         <div className="h-full flex items-center px-3">
                           <span className="text-[11px] text-slate-700 truncate" title={task.title}>{task.title}</span>
                         </div>
                       </div>
-                      {/* 右侧甘特格子 */}
                       <div className="flex relative">
-                        {/* start→ddl 连线 */}
                         {bar && (
                           <div
                             className="absolute bg-green-200/60 rounded-sm"
@@ -388,7 +385,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                             }}
                           />
                         )}
-                        {allDates.map((date, di) => {
+                        {allDates.map((date) => {
                           const cell = cellMap[`${task.id}_${date}`];
                           const isBoundary = weekBoundaries.has(date);
                           const cellType = cell?.type || 'event';
