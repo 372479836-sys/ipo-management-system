@@ -10,11 +10,9 @@ import MonthlyView from '@/components/MonthlyView';
 type ViewTab = 'daily' | 'weekly';
 
 export default function GanttPage() {
-  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell, isLocalMode, setLocalMode, syncToCloud, pullFromCloud, updateTask } = useIpoData();
+  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell, updateTask } = useIpoData();
   const { workstreams, tasks, ganttCells } = data;
   const [activeTab, setActiveTab] = useState<ViewTab>('daily');
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [institutionFilter, setInstitutionFilter] = React.useState('');
 
   // 机构列表（去重，排除空和"无"）
@@ -77,34 +75,6 @@ export default function GanttPage() {
     setTimeout(() => setAutoSyncMsg(null), 3000);
   };
 
-  const handleSyncToCloud = async () => {
-    setSyncing(true);
-    setSyncMsg(null);
-    try {
-      await syncToCloud();
-      setSyncMsg('✅ 已同步到云端');
-    } catch (e: any) {
-      setSyncMsg(`❌ ${e.message}`);
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setSyncMsg(null), 3000);
-    }
-  };
-
-  const handlePullFromCloud = async () => {
-    setSyncing(true);
-    setSyncMsg(null);
-    try {
-      await pullFromCloud();
-      setSyncMsg('✅ 已从云端拉取到本地');
-    } catch (e: any) {
-      setSyncMsg(`❌ ${e.message}`);
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setSyncMsg(null), 3000);
-    }
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -129,45 +99,7 @@ export default function GanttPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* 云端/本地模式切换 */}
-          <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1">
-            <button
-              onClick={() => setLocalMode(false)}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
-                !isLocalMode ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              ☁️ 云端
-            </button>
-            <button
-              onClick={() => setLocalMode(true)}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
-                isLocalMode ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              💾 本地
-            </button>
-          </div>
-          {/* 同步按钮 */}
-          <button
-            onClick={handleSyncToCloud}
-            disabled={syncing}
-            className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
-            title="将本地数据推送到云端"
-          >
-            {syncing ? '⏳' : '⬆️'} 本地数据同步到云端
-          </button>
-          <button
-            onClick={handlePullFromCloud}
-            disabled={syncing}
-            className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
-            title="从云端拉取数据到本地"
-          >
-            {syncing ? '⏳' : '⬇️'} 用云端数据覆盖本地
-          </button>
-          {syncMsg && (
-            <span className={`text-[10px] ${syncMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
-          )}
+          {/* 自动识别完成 */}
           <button
             onClick={handleAutoComplete}
             className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 hover:text-emerald-600 transition-all"

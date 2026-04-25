@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import GlobalSearch from './GlobalSearch';
+import { useIpoData } from '@/context/IpoDataContext';
 
 const NAV_ITEMS = [
   { href: '/', label: '首页', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -16,6 +17,22 @@ const NAV_ITEMS = [
 export default function NavBar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isLocalMode, setLocalMode, syncToCloud, pullFromCloud } = useIpoData();
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  const handleSyncToCloud = async () => {
+    setSyncing(true); setSyncMsg(null);
+    try { await syncToCloud(); setSyncMsg('✅ 已同步到云端'); }
+    catch (e: any) { setSyncMsg(`❌ ${e.message}`); }
+    finally { setSyncing(false); setTimeout(() => setSyncMsg(null), 3000); }
+  };
+  const handlePullFromCloud = async () => {
+    setSyncing(true); setSyncMsg(null);
+    try { await pullFromCloud(); setSyncMsg('✅ 已从云端拉取'); }
+    catch (e: any) { setSyncMsg(`❌ ${e.message}`); }
+    finally { setSyncing(false); setTimeout(() => setSyncMsg(null), 3000); }
+  };
 
   return (
     <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200/60 sticky top-0 z-50">
@@ -62,10 +79,51 @@ export default function NavBar() {
           </button>
         </div>
 
-        {/* Right: search + project */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Right: sync buttons + mode toggle + search + project */}
+        <div className="flex items-center gap-1.5">
+          {/* 云端/本地模式切换 */}
+          <div className="hidden lg:flex items-center gap-1 bg-slate-100 rounded-lg px-1.5 py-0.5">
+            <button
+              onClick={() => setLocalMode(false)}
+              className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-all ${
+                !isLocalMode ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              title="云端模式"
+            >
+              ☁️ 云端
+            </button>
+            <button
+              onClick={() => setLocalMode(true)}
+              className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-all ${
+                isLocalMode ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              title="本地模式"
+            >
+              💾 本地
+            </button>
+          </div>
+          {/* 同步按钮 */}
+          <button
+            onClick={handleSyncToCloud}
+            disabled={syncing}
+            className="hidden lg:flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
+            title="将本地数据推送到云端"
+          >
+            {syncing ? '⏳' : '⬆️'}
+          </button>
+          <button
+            onClick={handlePullFromCloud}
+            disabled={syncing}
+            className="hidden lg:flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
+            title="从云端拉取数据到本地"
+          >
+            {syncing ? '⏳' : '⬇️'}
+          </button>
+          {syncMsg && (
+            <span className={`hidden lg:inline text-[10px] ${syncMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
+          )}
           <div className="hidden sm:block"><GlobalSearch /></div>
-          <span className="text-xs text-slate-400 hidden lg:inline">Project Yangtze</span>
+          <span className="text-xs text-slate-400 hidden xl:inline">Project Yangtze</span>
         </div>
       </div>
 
