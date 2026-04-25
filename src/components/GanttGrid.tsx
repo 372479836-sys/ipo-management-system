@@ -312,7 +312,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
   const renderHeaderCols = () => (
     <>
       {/* 周次行 */}
-      <div className="flex" style={{ height: 22 }}>
+      <div className="flex" style={{ height: 44 }}>
         <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30, background: '#f8fafc' }}>
           <div className="h-full flex items-center px-3">
             <span className="text-[10px] font-medium text-slate-400">周次</span>
@@ -320,15 +320,47 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
         </div>
         <div className="flex">
           {WEEKS.map((w) => {
-            const wDates = allDates.filter(d => d >= w.start && d <= w.end);
+            const wDates = getDatesInRange(w.start, w.end).filter(d => allDates.includes(d));
             if (wDates.length === 0) return null;
+            
+            // 汇总该周内的关键节点
+            const weekNodes: { type: string; label: string; date: string }[] = [];
+            ganttCells.forEach(cell => {
+              if (wDates.includes(cell.date) && (cell.type === 'ddl' || cell.type === 'keynode' || cell.type === 'milestone' || cell.type === 'start' || cell.type === 'end')) {
+                const task = tasks.find(t => t.id === cell.taskId);
+                if (task) {
+                  weekNodes.push({ type: cell.type, label: cell.label || '', date: cell.date });
+                }
+              }
+            });
+            
             return (
               <div
                 key={w.short}
-                className="flex-shrink-0 flex items-center justify-center text-[10px] font-semibold text-brand-600 border-b border-r border-slate-300 bg-brand-50/40"
+                className="flex-shrink-0 flex flex-col items-center justify-center text-[10px] font-semibold text-brand-600 border-b border-r border-slate-300 bg-brand-50/40 px-1 py-0.5"
                 style={{ width: wDates.length * COL_W }}
               >
-                {w.label}
+                <div className="mb-0.5">{w.label}</div>
+                {weekNodes.length > 0 && (
+                  <div className="flex flex-wrap gap-0.5 justify-center max-w-full">
+                    {weekNodes.slice(0, 3).map((node, idx) => (
+                      <span
+                        key={idx}
+                        className="text-[8px] px-1 py-0.5 rounded bg-white/80 text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis"
+                        style={{ maxWidth: '60px' }}
+                        title={`${node.label} (${node.date})`}
+                      >
+                        {node.type === 'ddl' ? '⏰' : node.type === 'keynode' || node.type === 'milestone' ? '⭐' : node.type === 'start' ? '▶' : '⏹'}
+                        {node.label.slice(0, 4)}
+                      </span>
+                    ))}
+                    {weekNodes.length > 3 && (
+                      <span className="text-[8px] px-1 py-0.5 rounded bg-white/80 text-slate-500">
+                        +{weekNodes.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
