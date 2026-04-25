@@ -589,11 +589,16 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                     e.dataTransfer.setData('text/cell-id', cell.id);
                                     e.dataTransfer.effectAllowed = 'move';
                                   }}
-                                  className="cursor-pointer flex items-center justify-center w-full h-full"
+                                  className="cursor-pointer flex items-center justify-center w-full h-full relative"
                                   style={{ zIndex: 2 }}
                                   title={cell.label ? `${cell.label} (${cell.date})` : cell.date}
                                 >
                                   <span className="text-white text-[8px] font-bold drop-shadow-sm">★</span>
+                                  {cell.label && (
+                                    <span className="absolute left-full ml-1 text-slate-700 text-[10px] font-medium whitespace-nowrap bg-white/90 px-1 py-0.5 rounded shadow-sm">
+                                      {cell.label}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
