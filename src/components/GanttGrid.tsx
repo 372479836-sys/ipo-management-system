@@ -282,14 +282,15 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     const ranges: Record<string, { startIdx: number; endIdx: number }> = {};
     tasks.forEach(t => {
       const taskCells = ganttCells.filter(c => c.taskId === t.id);
-      const startCell = taskCells.find(c => c.type === 'start');
-      const endCell = taskCells.find(c => c.type === 'end' || c.type === 'ddl');
-      if (startCell && endCell) {
-        const si = dateIndexMap[startCell.date];
-        const ei = dateIndexMap[endCell.date];
-        if (si !== undefined && ei !== undefined && si < ei) {
-          ranges[t.id] = { startIdx: si, endIdx: ei };
-        }
+      if (taskCells.length === 0) return;
+      // 按日期排序，第一个节点=起点，最后一个=终点
+      const sorted = [...taskCells].sort((a, b) => a.date.localeCompare(b.date));
+      const firstDate = sorted[0].date;
+      const lastDate = sorted[sorted.length - 1].date;
+      const si = dateIndexMap[firstDate];
+      const ei = dateIndexMap[lastDate];
+      if (si !== undefined && ei !== undefined && si <= ei) {
+        ranges[t.id] = { startIdx: si, endIdx: ei };
       }
     });
     return ranges;
@@ -649,36 +650,39 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                 </div>
               </div>
 
-              {/* 数据行 */}
-              {workstreams.map((ws, wsIdx) => (
-                <React.Fragment key={ws.id}>
-                  {/* 条线标题行 */}
-                  <div className="flex" style={{ minHeight: ROW_H }}>
-                    <div className="flex-shrink-0 bg-slate-100 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
-                      <div className="h-full flex items-center px-3 gap-1.5" style={{ minHeight: ROW_H }}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${WS_COLORS[wsIdx % WS_COLORS.length]}`} />
+              {/* 数据行：条线 → 只显示关键节点 */}
+              {workstreams.map((ws, wsIdx) => {
+                // 汇总该条线在每个时间段的所有关键节点
+                const wsTasks = wsTaskMap[ws.id] || [];
+                const hasAnyNodes = viewPeriods.some(p =>
+                  wsTasks.some(t => getNodesForDateRange(t.id, p.start, p.end).length > 0)
+                );
+                if (!hasAnyNodes) return null;
+                return (
+                  <div key={ws.id} className="flex" style={{ minHeight: ROW_H }}>
+                    <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
+                      <div className="h-full flex items-start px-3 gap-1.5 py-1.5" style={{ minHeight: ROW_H }}>
+                        <div className={`w-1.5 h-1.5 rounded-full mt-0.5 flex-shrink-0 ${WS_COLORS[wsIdx % WS_COLORS.length]}`} />
                         <span className="text-[11px] font-semibold text-slate-700">{ws.name}</span>
-                        <span className="text-[10px] text-slate-400">({wsTaskMap[ws.id]?.length || 0})</span>
                       </div>
                     </div>
                     <div className="flex">
                       {viewPeriods.map((p, i) => {
-                        // 汇总该条线下所有任务在此时间段的关键节点
-                        const wsTasks = wsTaskMap[ws.id] || [];
-                        const allNodes: { taskTitle: string; type: string; label: string; date: string }[] = [];
+                        const allNodes: { label: string; date: string }[] = [];
                         wsTasks.forEach(t => {
                           getNodesForDateRange(t.id, p.start, p.end).forEach(c => {
-                            allNodes.push({ taskTitle: t.title, type: c.type || '', label: c.label || '', date: c.date });
+                            allNodes.push({ label: c.label || '', date: c.date });
                           });
                         });
+                        // 按日期排序
+                        allNodes.sort((a, b) => a.date.localeCompare(b.date));
                         return (
                           <div key={i} className="flex-shrink-0 border-b border-r border-slate-200 p-1.5" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W, background: allNodes.length > 0 ? WS_BG_COLORS[wsIdx % WS_BG_COLORS.length] : undefined }}>
                             {allNodes.length > 0 && (
                               <div className="flex flex-col gap-0.5">
                                 {allNodes.map((n, ni) => (
-                                  <div key={ni} className="text-[9px] text-slate-600 leading-tight truncate" title={`${n.taskTitle} - ${n.label || n.type} (${n.date})`}>
-                                    <span className="text-[8px]">{n.type === 'ddl' ? '⏰' : n.type === 'keynode' || n.type === 'milestone' ? '⭐' : n.type === 'start' ? '▶' : '⏹'}</span>
-                                    {' '}{formatShort(n.date)} {n.label || n.taskTitle}
+                                  <div key={ni} className="text-[10px] text-slate-700 leading-tight" title={`${n.label} (${n.date})`}>
+                                    <span className="font-medium text-slate-500">{formatShort(n.date)}</span>{' '}{n.label}
                                   </div>
                                 ))}
                               </div>
@@ -688,41 +692,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                       })}
                     </div>
                   </div>
-
-                  {/* 任务行 */}
-                  {(wsTaskMap[ws.id] || []).map((task) => {
-                    const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
-                    return (
-                      <div key={task.id} className={`flex ${isCompleted ? 'opacity-50' : ''}`} style={{ minHeight: ROW_H }}>
-                        <div className="flex-shrink-0 border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10, background: isCompleted ? '#f8fafc' : 'white' }}>
-                          <div className="h-full flex items-center px-3" style={{ minHeight: ROW_H }}>
-                            <span className={`text-[11px] truncate ${isCompleted ? 'line-through text-slate-400' : 'text-slate-700'}`} title={task.title}>{task.title}</span>
-                          </div>
-                        </div>
-                        <div className="flex">
-                          {viewPeriods.map((p, i) => {
-                            const nodes = getNodesForDateRange(task.id, p.start, p.end);
-                            return (
-                              <div key={i} className="flex-shrink-0 border-b border-r border-slate-100 p-1" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W }}>
-                                {nodes.length > 0 && (
-                                  <div className="flex flex-col gap-0.5">
-                                    {nodes.map((n, ni) => (
-                                      <div key={ni} className="text-[9px] text-slate-600 leading-tight truncate" title={`${n.label || n.type} (${n.date})`}>
-                                        <span className="text-[8px]">{n.type === 'ddl' ? '⏰' : n.type === 'keynode' || n.type === 'milestone' ? '⭐' : n.type === 'start' ? '▶' : '⏹'}</span>
-                                        {' '}{formatShort(n.date)} {n.label || task.title}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
