@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { GanttCell, Task, Workstream } from '@/types/ipo';
 
 interface GanttGridProps {
@@ -110,12 +110,20 @@ function CellContextMenu({
   x, y, onAdd, onRemove, onClose, existingCellId, cellInfo,
 }: {
   x: number; y: number;
-  onAdd: (type: 'start' | 'ddl' | 'keynode') => void;
+  onAdd: (type: 'start' | 'ddl' | 'keynode', label?: string) => void;
   onRemove?: () => void;
   onClose: () => void;
   existingCellId?: string;
   cellInfo?: { label: string; date: string; type: string; taskTitle: string };
 }) {
+  const [showKeynodeInput, setShowKeynodeInput] = useState(false);
+  const [keynodeLabel, setKeynodeLabel] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showKeynodeInput && inputRef.current) inputRef.current.focus();
+  }, [showKeynodeInput]);
+
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
@@ -146,10 +154,44 @@ function CellContextMenu({
               </button>
             )}
           </>
+        ) : showKeynodeInput ? (
+          <div className="px-3 py-2">
+            <div className="text-[10px] text-slate-500 mb-1.5">关键节点备注</div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={keynodeLabel}
+              onChange={(e) => setKeynodeLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onAdd('keynode', keynodeLabel.trim() || undefined);
+                  onClose();
+                } else if (e.key === 'Escape') {
+                  setShowKeynodeInput(false);
+                }
+              }}
+              placeholder="输入节点说明（可选）"
+              className="w-full text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:border-brand-400"
+            />
+            <div className="flex gap-1.5 mt-1.5">
+              <button
+                onClick={() => { onAdd('keynode', keynodeLabel.trim() || undefined); onClose(); }}
+                className="flex-1 text-[10px] bg-amber-500 text-white rounded px-2 py-1 hover:bg-amber-600"
+              >
+                确定
+              </button>
+              <button
+                onClick={() => setShowKeynodeInput(false)}
+                className="flex-1 text-[10px] bg-slate-100 text-slate-600 rounded px-2 py-1 hover:bg-slate-200"
+              >
+                取消
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">标注节点</div>
-            {(['start', 'ddl', 'keynode'] as const).map(type => (
+            {(['start', 'ddl'] as const).map(type => (
               <button
                 key={type}
                 onClick={() => { onAdd(type); onClose(); }}
@@ -159,6 +201,13 @@ function CellContextMenu({
                 {MARKER_LABELS[type]}
               </button>
             ))}
+            <button
+              onClick={() => setShowKeynodeInput(true)}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex items-center gap-2"
+            >
+              <span className={`w-2 h-2 rounded-full ${MARKER_STYLES.keynode}`} />
+              {MARKER_LABELS.keynode}
+            </button>
           </>
         )}
       </div>
@@ -247,9 +296,9 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId, date, cellId });
   };
 
-  const handleAddMarker = (type: 'start' | 'ddl' | 'keynode') => {
+  const handleAddMarker = (type: 'start' | 'ddl' | 'keynode', customLabel?: string) => {
     if (!ctxMenu || !onAddMarker) return;
-    onAddMarker(ctxMenu.taskId, ctxMenu.date, type, MARKER_LABELS[type]);
+    onAddMarker(ctxMenu.taskId, ctxMenu.date, type, customLabel || MARKER_LABELS[type]);
   };
 
   const todayIdx = allDates.indexOf(today);
