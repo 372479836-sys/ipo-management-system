@@ -38,19 +38,19 @@ const WS_COLORS = [
   'bg-slate-500',
 ];
 
-/* 三层颜色：淡底色(0.06) → 条线区间(0.10) → 节点(0.35) — 整体偏淡柔和 */
+/* 三层颜色：底色白色 → 条线区间(0.12) → 节点加深(0.45) */
 const WS_BAR_COLORS = [
-  'rgba(99,102,241,0.10)', 'rgba(139,92,246,0.10)', 'rgba(6,182,212,0.10)', 'rgba(16,185,129,0.10)',
-  'rgba(245,158,11,0.10)', 'rgba(244,63,94,0.10)', 'rgba(249,115,22,0.10)', 'rgba(20,184,166,0.10)',
-  'rgba(14,165,233,0.10)', 'rgba(168,85,247,0.10)', 'rgba(236,72,153,0.10)', 'rgba(132,204,22,0.10)',
-  'rgba(100,116,139,0.10)',
+  'rgba(99,102,241,0.12)', 'rgba(139,92,246,0.12)', 'rgba(6,182,212,0.12)', 'rgba(16,185,129,0.12)',
+  'rgba(245,158,11,0.12)', 'rgba(244,63,94,0.12)', 'rgba(249,115,22,0.12)', 'rgba(20,184,166,0.12)',
+  'rgba(14,165,233,0.12)', 'rgba(168,85,247,0.12)', 'rgba(236,72,153,0.12)', 'rgba(132,204,22,0.12)',
+  'rgba(100,116,139,0.12)',
 ];
 
 const WS_NODE_COLORS = [
-  'rgba(99,102,241,0.35)', 'rgba(139,92,246,0.35)', 'rgba(6,182,212,0.35)', 'rgba(16,185,129,0.35)',
-  'rgba(245,158,11,0.35)', 'rgba(244,63,94,0.35)', 'rgba(249,115,22,0.35)', 'rgba(20,184,166,0.35)',
-  'rgba(14,165,233,0.35)', 'rgba(168,85,247,0.35)', 'rgba(236,72,153,0.35)', 'rgba(132,204,22,0.35)',
-  'rgba(100,116,139,0.35)',
+  'rgba(99,102,241,0.45)', 'rgba(139,92,246,0.45)', 'rgba(6,182,212,0.45)', 'rgba(16,185,129,0.45)',
+  'rgba(245,158,11,0.45)', 'rgba(244,63,94,0.45)', 'rgba(249,115,22,0.45)', 'rgba(20,184,166,0.45)',
+  'rgba(14,165,233,0.45)', 'rgba(168,85,247,0.45)', 'rgba(236,72,153,0.45)', 'rgba(132,204,22,0.45)',
+  'rgba(100,116,139,0.45)',
 ];
 
 const WS_BG_COLORS = [
@@ -480,7 +480,6 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                   const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
                   const barColor = isCompleted ? 'rgba(148,163,184,0.12)' : WS_BAR_COLORS[wsIdx % WS_BAR_COLORS.length];
                   const nodeColor = WS_NODE_COLORS[wsIdx % WS_NODE_COLORS.length];
-                  const bgColor = WS_BG_COLORS[wsIdx % WS_BG_COLORS.length];
                   return (
                     <div key={task.id} className={`flex ${isCompleted ? 'opacity-50' : ''}`} style={{ height: ROW_H }}>
                       <div className="flex-shrink-0 border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10, background: isCompleted ? '#f8fafc' : 'white' }}>
@@ -500,9 +499,9 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                           // 已完成任务的格子用灰色覆盖
                           let cellBg: string | undefined;
                           if (isCompleted) {
-                            cellBg = cell && isStartOrEnd ? 'rgba(148,163,184,0.4)' : cell && isKeyNode ? 'rgba(148,163,184,0.3)' : inRange ? 'rgba(148,163,184,0.08)' : bgColor;
+                            cellBg = cell && isStartOrEnd ? 'rgba(148,163,184,0.4)' : cell && isKeyNode ? 'rgba(148,163,184,0.3)' : inRange ? 'rgba(148,163,184,0.08)' : undefined;
                           } else {
-                            cellBg = cell && isStartOrEnd ? nodeColor : cell && isKeyNode ? 'rgba(245,158,11,0.6)' : inRange ? barColor : bgColor;
+                            cellBg = cell && isStartOrEnd ? nodeColor : cell && isKeyNode ? nodeColor : inRange ? barColor : undefined;
                           }
                           return (
                             <div
