@@ -89,15 +89,28 @@ interface FetchResult {
 async function fetchProjectData(): Promise<FetchResult> {
   const projectId = await getOrCreateProjectId();
 
-  const [wsRes, taskRes, gcRes] = await Promise.all([
+  const [wsRes, taskRes] = await Promise.all([
     supabase.from('workstreams').select('*').eq('project_id', projectId).order('sort_order', { ascending: true }),
     supabase.from('tasks').select('*').eq('project_id', projectId).order('created_at', { ascending: true }),
-    supabase.from('gantt_cells').select('*'),
   ]);
 
   if (wsRes.error) throw new Error(`workstreams: ${wsRes.error.message}`);
   if (taskRes.error) throw new Error(`tasks: ${taskRes.error.message}`);
-  if (gcRes.error) throw new Error(`gantt_cells: ${gcRes.error.message}`);
+
+  // gantt_cells 可能超过1000条，需要分页获取全部
+  const allGanttCells: any[] = [];
+  const PAGE_SIZE = 1000;
+  let page = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('gantt_cells')
+      .select('*')
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error) throw new Error(`gantt_cells page ${page}: ${error.message}`);
+    if (data) allGanttCells.push(...data);
+    if (!data || data.length < PAGE_SIZE) break;
+    page++;
+  }
 
   const allTimes = [
     ...(taskRes.data || []).map((r: any) => r.updated_at),
@@ -127,7 +140,7 @@ async function fetchProjectData(): Promise<FetchResult> {
   }));
 
   const taskIds = new Set(tasks.map((t) => t.id));
-  const ganttCells: GanttCell[] = (gcRes.data || [])
+  const ganttCells: GanttCell[] = (allGanttCells)
     .filter((r: any) => taskIds.has(r.task_id))
     .map((r: any) => ({
       id: r.id,
