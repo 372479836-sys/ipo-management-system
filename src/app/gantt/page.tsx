@@ -30,15 +30,23 @@ export default function GanttPage() {
     const today = new Date().toISOString().slice(0, 10);
     let count = 0;
     for (const task of tasks) {
-      if (task.status === 'completed') continue;
       const taskCells = ganttCells.filter(c => c.taskId === task.id);
+      const startCell = taskCells.find(c => c.type === 'start');
       const ddlCell = taskCells.find(c => c.type === 'ddl' || c.type === 'end');
+      let newStatus: string | null = null;
       if (ddlCell && ddlCell.date < today) {
-        await updateTask(task.id, { status: 'completed' });
+        newStatus = 'completed';
+      } else if (startCell && startCell.date <= today && (!ddlCell || ddlCell.date >= today)) {
+        newStatus = 'in_progress';
+      } else if (startCell && startCell.date > today) {
+        newStatus = 'pending';
+      }
+      if (newStatus && newStatus !== task.status) {
+        await updateTask(task.id, { status: newStatus as any });
         count++;
       }
     }
-    setAutoSyncMsg(count > 0 ? `✅ 已自动标记 ${count} 项为完成` : '没有需要标记的事项');
+    setAutoSyncMsg(count > 0 ? `✅ 已自动更新 ${count} 项状态` : '所有事项状态已是最新');
     setTimeout(() => setAutoSyncMsg(null), 3000);
   };
 
