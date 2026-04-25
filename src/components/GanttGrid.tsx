@@ -231,8 +231,11 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
   const toggleWeek = (idx: number) => {
     setSelectedWeeks(prev => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
       return next;
     });
   };
