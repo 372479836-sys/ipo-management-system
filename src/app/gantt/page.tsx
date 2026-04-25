@@ -15,6 +15,33 @@ export default function GanttPage() {
   const [activeTab, setActiveTab] = useState<ViewTab>('daily');
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [institutionFilter, setInstitutionFilter] = React.useState('');
+
+  // 机构列表（去重，排除空和"无"）
+  const allInstitutions = React.useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach(t => {
+      if (t.sponsor && t.sponsor.trim() !== '' && t.sponsor !== '无') set.add(t.sponsor);
+      if (t.lawyer && t.lawyer.trim() !== '' && t.lawyer !== '无') set.add(t.lawyer);
+      if (t.otherParty && t.otherParty.trim() !== '' && t.otherParty !== '无') set.add(t.otherParty);
+    });
+    return Array.from(set).sort();
+  }, [tasks]);
+
+  // 按机构筛选后的事项
+  const filteredTasks = React.useMemo(() => {
+    if (!institutionFilter) return tasks;
+    return tasks.filter(t =>
+      t.sponsor === institutionFilter || t.lawyer === institutionFilter || t.otherParty === institutionFilter
+    );
+  }, [tasks, institutionFilter]);
+
+  // 筛选后的条线（只保留有事项的条线）
+  const filteredWorkstreams = React.useMemo(() => {
+    if (!institutionFilter) return workstreams;
+    const wsIdsWithTasks = new Set(filteredTasks.map(t => t.workstreamId));
+    return workstreams.filter(ws => wsIdsWithTasks.has(ws.id));
+  }, [workstreams, filteredTasks, institutionFilter]);
 
   const handleAddMarker = (taskId: string, date: string, type: 'start' | 'ddl' | 'keynode', label: string) => {
     const id = crypto.randomUUID();
@@ -81,7 +108,26 @@ export default function GanttPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-800">甘特图</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-slate-800">甘特图</h1>
+          {/* 机构筛选 */}
+          {allInstitutions.length > 0 && (
+            <select
+              value={institutionFilter}
+              onChange={e => setInstitutionFilter(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-400"
+            >
+              <option value="">全部机构</option>
+              {allInstitutions.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          {institutionFilter && (
+            <button
+              onClick={() => setInstitutionFilter('')}
+              className="text-[11px] text-slate-500 hover:text-red-500 underline"
+            >清除筛选</button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {/* 云端/本地模式切换 */}
           <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1">
@@ -195,8 +241,8 @@ export default function GanttPage() {
       {!loading && tasks.length > 0 && activeTab === 'daily' && (
         <>
           <GanttGrid
-            workstreams={workstreams}
-            tasks={tasks}
+            workstreams={filteredWorkstreams}
+            tasks={filteredTasks}
             ganttCells={ganttCells}
             onAddMarker={handleAddMarker}
             onRemoveCell={handleRemoveCell}
@@ -217,8 +263,8 @@ export default function GanttPage() {
 
       {!loading && tasks.length > 0 && activeTab === 'weekly' && (
         <WeeklyView
-          workstreams={workstreams}
-          tasks={tasks}
+          workstreams={filteredWorkstreams}
+          tasks={filteredTasks}
           ganttCells={ganttCells}
         />
       )}
