@@ -22,9 +22,9 @@ export default function WorkstreamsPage() {
   const allInstitutions = React.useMemo(() => {
     const set = new Set<string>();
     tasks.forEach(t => {
-      if (t.sponsor) set.add(t.sponsor);
-      if (t.lawyer) set.add(t.lawyer);
-      if (t.otherParty) set.add(t.otherParty);
+      if (t.sponsor && t.sponsor.trim() !== '' && t.sponsor !== '无') set.add(t.sponsor);
+      if (t.lawyer && t.lawyer.trim() !== '' && t.lawyer !== '无') set.add(t.lawyer);
+      if (t.otherParty && t.otherParty.trim() !== '' && t.otherParty !== '无') set.add(t.otherParty);
     });
     return Array.from(set).sort();
   }, [tasks]);
@@ -134,10 +134,21 @@ export default function WorkstreamsPage() {
       {viewMode === 'kanban' ? (
         <KanbanBoard tasks={filteredTasks} workstreams={workstreams} onUpdateTask={updateTask} />
       ) : (
-        workstreams.map((ws) => {
-          const wsTasks = filteredTasks.filter(t => t.workstreamId === ws.id)
-            .sort((a, b) => a.id.localeCompare(b.id));
-          return (
+        workstreams
+          .map((ws) => {
+            const wsTasks = filteredTasks.filter(t => t.workstreamId === ws.id)
+              .sort((a, b) => a.id.localeCompare(b.id));
+            return { ws, wsTasks };
+          })
+          .sort((a, b) => {
+            // 有筛选条件时，有事项的排前面，空的排后面
+            if (institutionFilter || assigneeFilter) {
+              if (a.wsTasks.length > 0 && b.wsTasks.length === 0) return -1;
+              if (a.wsTasks.length === 0 && b.wsTasks.length > 0) return 1;
+            }
+            return 0;
+          })
+          .map(({ ws, wsTasks }) => (
             <WorkstreamSection
               key={ws.id}
               workstreamId={ws.id}
@@ -148,9 +159,9 @@ export default function WorkstreamsPage() {
               onRemoveTask={removeTask}
               onRenameWorkstream={renameWorkstream}
               onRemoveWorkstream={removeWorkstream}
+              defaultOpen={!((institutionFilter || assigneeFilter) && wsTasks.length === 0)}
             />
-          );
-        })
+          ))
       )}
     </div>
   );

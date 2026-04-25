@@ -116,6 +116,7 @@ export default function WorkstreamSection({
   onRemoveWorkstream
 }: WorkstreamSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => { setOpen(defaultOpen ?? true); }, [defaultOpen]);
   const [addingTask, setAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingWsName, setEditingWsName] = useState(false);
@@ -143,7 +144,7 @@ export default function WorkstreamSection({
 
   /* 拼接负责机构小字 */
   const getParties = (t: Task) => {
-    const parts = [t.sponsor, t.lawyer, t.otherParty].filter(Boolean);
+    const parts = [t.sponsor, t.lawyer, t.otherParty].filter(p => p && p.trim() !== '' && p !== '无');
     return parts.length > 0 ? parts.join(' · ') : '';
   };
 

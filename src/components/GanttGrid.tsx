@@ -140,9 +140,10 @@ function CellContextMenu({
                 <span className="text-[10px] font-medium text-slate-500">{MARKER_LABELS[cellInfo.type] || cellInfo.type}</span>
                 <span className="text-[10px] text-slate-400 ml-auto">{cellInfo.date}</span>
               </div>
-              <div className="text-xs text-slate-700 font-medium">{cellInfo.taskTitle}</div>
-              {cellInfo.label && cellInfo.label !== cellInfo.taskTitle && (
-                <div className="text-[10px] text-slate-500 mt-0.5">{cellInfo.label}</div>
+              {(cellInfo.type === 'ddl' || cellInfo.type === 'keynode') && cellInfo.label ? (
+                <div className="text-xs text-slate-700 font-medium">{cellInfo.label}</div>
+              ) : (
+                <div className="text-xs text-slate-700 font-medium">{cellInfo.taskTitle}</div>
               )}
             </div>
             {onRemove && (
