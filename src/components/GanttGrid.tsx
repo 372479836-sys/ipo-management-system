@@ -624,8 +624,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
             const allWsCells = wsTasks.flatMap(t => ganttCells.filter(c => c.taskId === t.id)).sort((a, b) => a.date.localeCompare(b.date));
             if (allWsCells.length === 0) return null;
 
-            // 过滤出有关键节点的任务（周视图展开用）
-            const tasksWithNodes = viewMode === 'week' ? wsTasks.filter(t => ganttCells.some(c => c.taskId === t.id)) : [];
+            // 过滤出有关键节点的任务（周/月视图展开用）
+            const tasksWithNodes = wsTasks.filter(t => ganttCells.some(c => c.taskId === t.id));
 
             return (
               <div key={ws.id} className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
@@ -636,59 +636,38 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                   <span className="text-xs text-slate-400 ml-1">{allWsCells.length} 个节点</span>
                 </div>
 
-                {viewMode === 'month' ? (
-                  /* 月视图：只显示条线级汇总，所有节点平铺 */
-                  <div className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {allWsCells.map((cell) => {
-                        const task = tasks.find(t => t.id === cell.taskId);
-                        return (
-                          <span
-                            key={cell.id}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-pink-50 text-pink-700 border border-pink-200"
-                            title={`${task?.title || ''} - ${cell.date}`}
-                          >
-                            <span className="font-medium">{cell.date.slice(5)}</span>
-                            <span>{cell.label}</span>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  /* 周视图：按任务展开 */
-                  <div className="divide-y divide-slate-100">
-                    {tasksWithNodes.map((task) => {
-                      const taskCells = ganttCells.filter(c => c.taskId === task.id).sort((a, b) => a.date.localeCompare(b.date));
-                      const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
-                      const statusColor = isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
-                      const statusText = isCompleted ? '已完成' : '进行中';
+                {/* 周/月视图：按任务展开 */}
+                <div className="divide-y divide-slate-100">
+                  {tasksWithNodes.map((task) => {
+                    const taskCells = ganttCells.filter(c => c.taskId === task.id).sort((a, b) => a.date.localeCompare(b.date));
+                    const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
+                    const statusColor = isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
+                    const statusText = isCompleted ? '已完成' : '进行中';
 
-                      return (
-                        <div key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
-                          <div className="flex-shrink-0 w-48">
-                            <div className="font-medium text-sm text-slate-700 mb-1">{task.title}</div>
-                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${statusColor}`}>
-                              {statusText}
-                            </span>
-                          </div>
-                          <div className="flex-1 flex flex-wrap gap-1.5">
-                            {taskCells.map((cell) => (
-                              <span
-                                key={cell.id}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-pink-50 text-pink-700 border border-pink-200"
-                                title={cell.date}
-                              >
-                                <span className="font-medium">{cell.date.slice(5)}</span>
-                                <span>{cell.label}</span>
-                              </span>
-                            ))}
-                          </div>
+                    return (
+                      <div key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
+                        <div className="flex-shrink-0 w-48">
+                          <div className="font-medium text-sm text-slate-700 mb-1">{task.title}</div>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${statusColor}`}>
+                            {statusText}
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <div className="flex-1 flex flex-wrap gap-1.5">
+                          {taskCells.map((cell) => (
+                            <span
+                              key={cell.id}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-pink-50 text-pink-700 border border-pink-200"
+                              title={cell.date}
+                            >
+                              <span className="font-medium">{cell.date.slice(5)}</span>
+                              <span>{cell.label}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
