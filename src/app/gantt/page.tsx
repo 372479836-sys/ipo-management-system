@@ -10,7 +10,7 @@ import MonthlyView from '@/components/MonthlyView';
 type ViewTab = 'daily' | 'weekly' | 'monthly';
 
 export default function GanttPage() {
-  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell, isLocalMode, setLocalMode, syncToCloud, pullFromCloud } = useIpoData();
+  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell, isLocalMode, setLocalMode, syncToCloud, pullFromCloud, updateTask } = useIpoData();
   const { workstreams, tasks, ganttCells } = data;
   const [activeTab, setActiveTab] = useState<ViewTab>('daily');
   const [syncing, setSyncing] = useState(false);
@@ -23,6 +23,23 @@ export default function GanttPage() {
 
   const handleRemoveCell = (cellId: string) => {
     removeGanttCell(cellId);
+  };
+
+  const [autoSyncMsg, setAutoSyncMsg] = useState<string | null>(null);
+  const handleAutoComplete = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    let count = 0;
+    for (const task of tasks) {
+      if (task.status === 'completed') continue;
+      const taskCells = ganttCells.filter(c => c.taskId === task.id);
+      const ddlCell = taskCells.find(c => c.type === 'ddl' || c.type === 'end');
+      if (ddlCell && ddlCell.date < today) {
+        await updateTask(task.id, { status: 'completed' });
+        count++;
+      }
+    }
+    setAutoSyncMsg(count > 0 ? `✅ 已自动标记 ${count} 项为完成` : '没有需要标记的事项');
+    setTimeout(() => setAutoSyncMsg(null), 3000);
   };
 
   const handleSyncToCloud = async () => {
@@ -96,6 +113,16 @@ export default function GanttPage() {
           </button>
           {syncMsg && (
             <span className={`text-[10px] ${syncMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
+          )}
+          <button
+            onClick={handleAutoComplete}
+            className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 hover:text-emerald-600 transition-all"
+            title="DDL已过的事项自动标为完成"
+          >
+            🤖 自动识别完成
+          </button>
+          {autoSyncMsg && (
+            <span className={`text-[10px] ${autoSyncMsg.startsWith('✅') ? 'text-green-600' : 'text-slate-500'}`}>{autoSyncMsg}</span>
           )}
           {hasImported && (
             <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>

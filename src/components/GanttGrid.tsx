@@ -38,20 +38,18 @@ const WS_COLORS = [
   'bg-slate-500',
 ];
 
-const WS_BAR_GRADIENTS = [
-  'from-indigo-300/70 to-indigo-500/40',
-  'from-violet-300/70 to-violet-500/40',
-  'from-cyan-300/70 to-cyan-500/40',
-  'from-emerald-300/70 to-emerald-500/40',
-  'from-amber-300/70 to-amber-500/40',
-  'from-rose-300/70 to-rose-500/40',
-  'from-orange-300/70 to-orange-500/40',
-  'from-teal-300/70 to-teal-500/40',
-  'from-sky-300/70 to-sky-500/40',
-  'from-purple-300/70 to-purple-500/40',
-  'from-pink-300/70 to-pink-500/40',
-  'from-lime-300/70 to-lime-500/40',
-  'from-slate-300/70 to-slate-500/40',
+const WS_BAR_COLORS = [
+  'rgba(99,102,241,0.25)', 'rgba(139,92,246,0.25)', 'rgba(6,182,212,0.25)', 'rgba(16,185,129,0.25)',
+  'rgba(245,158,11,0.25)', 'rgba(244,63,94,0.25)', 'rgba(249,115,22,0.25)', 'rgba(20,184,166,0.25)',
+  'rgba(14,165,233,0.25)', 'rgba(168,85,247,0.25)', 'rgba(236,72,153,0.25)', 'rgba(132,204,22,0.25)',
+  'rgba(100,116,139,0.25)',
+];
+
+const WS_NODE_COLORS = [
+  'rgba(99,102,241,0.7)', 'rgba(139,92,246,0.7)', 'rgba(6,182,212,0.7)', 'rgba(16,185,129,0.7)',
+  'rgba(245,158,11,0.7)', 'rgba(244,63,94,0.7)', 'rgba(249,115,22,0.7)', 'rgba(20,184,166,0.7)',
+  'rgba(14,165,233,0.7)', 'rgba(168,85,247,0.7)', 'rgba(236,72,153,0.7)', 'rgba(132,204,22,0.7)',
+  'rgba(100,116,139,0.7)',
 ];
 
 const WS_BG_COLORS = [
@@ -109,31 +107,44 @@ function getDayName(dateStr: string): string {
 
 /* 右键菜单 */
 function CellContextMenu({
-  x, y, onAdd, onRemove, onClose, existingCellId,
+  x, y, onAdd, onRemove, onClose, existingCellId, cellInfo,
 }: {
   x: number; y: number;
   onAdd: (type: 'start' | 'ddl' | 'keynode') => void;
   onRemove?: () => void;
   onClose: () => void;
   existingCellId?: string;
+  cellInfo?: { label: string; date: string; type: string; taskTitle: string };
 }) {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="fixed z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[120px]"
+        className="fixed z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[160px]"
         style={{ left: x, top: y }}
       >
-        {existingCellId && onRemove ? (
+        {existingCellId && cellInfo ? (
           <>
-            <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">操作</div>
-            <button
-              onClick={() => { onRemove(); onClose(); }}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"
-            >
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-              删除标记
-            </button>
+            <div className="px-3 py-2 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={`w-2 h-2 rounded-full ${MARKER_STYLES[cellInfo.type] || 'bg-brand-500'}`} />
+                <span className="text-[10px] font-medium text-slate-500">{MARKER_LABELS[cellInfo.type] || cellInfo.type}</span>
+                <span className="text-[10px] text-slate-400 ml-auto">{cellInfo.date}</span>
+              </div>
+              <div className="text-xs text-slate-700 font-medium">{cellInfo.taskTitle}</div>
+              {cellInfo.label && cellInfo.label !== cellInfo.taskTitle && (
+                <div className="text-[10px] text-slate-500 mt-0.5">{cellInfo.label}</div>
+              )}
+            </div>
+            {onRemove && (
+              <button
+                onClick={() => { onRemove(); onClose(); }}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                删除标记
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -413,43 +424,39 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                 </div>
 
                 {/* 任务行 */}
-                {(wsTaskMap[ws.id] || []).map((task) => {
+                {(wsTaskMap[ws.id] || []).filter(task => task.status !== 'completed').map((task) => {
                   const bar = taskBarRanges[task.id];
-                  const barGradient = WS_BAR_GRADIENTS[wsIdx % WS_BAR_GRADIENTS.length];
+                  const isCompleted = task.status === 'completed';
+                  const barColor = isCompleted ? 'rgba(148,163,184,0.12)' : WS_BAR_COLORS[wsIdx % WS_BAR_COLORS.length];
+                  const nodeColor = WS_NODE_COLORS[wsIdx % WS_NODE_COLORS.length];
                   const bgColor = WS_BG_COLORS[wsIdx % WS_BG_COLORS.length];
                   return (
-                    <div key={task.id} className="flex" style={{ height: ROW_H }}>
+                    <div key={task.id} className={`flex ${isCompleted ? 'opacity-60' : ''}`} style={{ height: ROW_H }}>
                       <div className="flex-shrink-0 bg-white border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
                         <div className="h-full flex items-center px-3">
-                          <span className="text-[11px] text-slate-700 truncate" title={task.title}>{task.title}</span>
+                          <span className={`text-[11px] truncate ${task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-700'}`} title={task.title}>{task.title}</span>
                         </div>
                       </div>
                       <div className="flex relative">
-                        {bar && (
-                          <div
-                            className={`absolute bg-gradient-to-r ${barGradient} rounded-full`}
-                            style={{
-                              left: bar.startIdx * COL_W + COL_W / 2,
-                              width: (bar.endIdx - bar.startIdx) * COL_W,
-                              top: ROW_H / 2 - 4,
-                              height: 8,
-                              zIndex: 1,
-                            }}
-                          />
-                        )}
                         {allDates.map((date, dateIdx) => {
                           const cell = cellMap[`${task.id}_${date}`];
                           const isBoundary = weekBoundaries.has(date);
                           const cellType = cell?.type || 'event';
                           const inRange = bar && dateIdx >= bar.startIdx && dateIdx <= bar.endIdx;
+                          const isNode = cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode' || cellType === 'milestone';
+                          const isStartOrEnd = cellType === 'start' || cellType === 'end' || cellType === 'ddl';
+                          const isKeyNode = cellType === 'keynode' || cellType === 'milestone';
                           return (
                             <div
                               key={`${task.id}_${date}`}
                               className={`flex-shrink-0 border-r ${isBoundary ? 'border-r-slate-300' : 'border-r-slate-50'} border-b border-b-slate-100 flex items-center justify-center relative ${
                                 isWeekend(date) ? 'bg-slate-50/50' : ''
                               } ${date === today ? 'bg-brand-50/30' : ''}`}
-                              style={{ width: COL_W, backgroundColor: inRange ? bgColor : undefined }}
-                              onClick={(e) => !cell && handleCellClick(e, task.id, date)}
+                              style={{
+                                width: COL_W,
+                                backgroundColor: (cell && isStartOrEnd) ? nodeColor : (cell && isKeyNode) ? 'rgba(245,158,11,0.6)' : inRange ? barColor : undefined,
+                              }}
+                              onClick={(e) => cell ? handleCellClick(e, task.id, date, cell.id) : handleCellClick(e, task.id, date)}
                               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
                               onDrop={(e) => {
                                 e.preventDefault();
@@ -457,23 +464,29 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                 if (cellId && onMoveCell) onMoveCell(cellId, date);
                               }}
                             >
-                              {cell && (
+                              {cell && isNode && (
                                 <div
-                                  draggable={!!(onMoveCell && (cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode'))}
+                                  draggable={!!(onMoveCell && isNode)}
                                   onDragStart={(e) => {
                                     e.dataTransfer.setData('text/cell-id', cell.id);
                                     e.dataTransfer.effectAllowed = 'move';
                                   }}
+                                  className="cursor-pointer flex items-center justify-center w-full h-full"
+                                  style={{ zIndex: 2 }}
+                                  title={`${cell.label} (${cell.date})`}
+                                >
+                                  <span className="text-white text-[8px] font-bold drop-shadow-sm">
+                                    {cellType === 'start' ? '▶' : cellType === 'end' || cellType === 'ddl' ? '■' : '★'}
+                                  </span>
+                                </div>
+                              )}
+                              {cell && !isNode && (
+                                <div
                                   className={`absolute inset-0.5 rounded flex items-center justify-center text-white text-[8px] font-medium leading-tight px-0.5 ${
                                     MARKER_STYLES[cellType] || 'bg-brand-500'
                                   } ${onRemoveCell ? 'cursor-pointer' : ''}`}
                                   style={{ zIndex: 2 }}
-                                  title={`${cell.label} (${cell.date})${cellType !== 'event' ? ' [' + cellType + ']' : ''}\\n点击操作`}
-                                  onClick={(e) => {
-                                    if (cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode') {
-                                      handleCellClick(e, task.id, date, cell.id);
-                                    }
-                                  }}
+                                  title={`${cell.label} (${cell.date})`}
                                 >
                                   <span className="truncate">{cell.label}</span>
                                 </div>
@@ -492,16 +505,22 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
       </div>
 
       {/* 左键菜单 */}
-      {ctxMenu && (
-        <CellContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          onAdd={handleAddMarker}
-          onRemove={ctxMenu.cellId && onRemoveCell ? () => onRemoveCell(ctxMenu.cellId!) : undefined}
-          existingCellId={ctxMenu.cellId}
-          onClose={() => setCtxMenu(null)}
-        />
-      )}
+      {ctxMenu && (() => {
+        const cell = ctxMenu.cellId ? ganttCells.find(c => c.id === ctxMenu.cellId) : undefined;
+        const task = tasks.find(t => t.id === ctxMenu.taskId);
+        const cellInfo = cell ? { label: cell.label || '', date: cell.date, type: cell.type || 'event', taskTitle: task?.title || '' } : undefined;
+        return (
+          <CellContextMenu
+            x={ctxMenu.x}
+            y={ctxMenu.y}
+            onAdd={handleAddMarker}
+            onRemove={ctxMenu.cellId && onRemoveCell ? () => onRemoveCell(ctxMenu.cellId!) : undefined}
+            existingCellId={ctxMenu.cellId}
+            cellInfo={cellInfo}
+            onClose={() => setCtxMenu(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -44,19 +44,19 @@ export default function DashboardPage() {
     }));
   }, [workstreams, tasks]);
 
-  // DDL预警：未来14天内的ddl/milestone/keynode
+  // DDL预警：未来7天内的ddl/milestone/keynode
   const ddlWarnings = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const in14 = new Date(today);
-    in14.setDate(in14.getDate() + 14);
+    const in7 = new Date(today);
+    in7.setDate(in7.getDate() + 7);
 
     const importantTypes = ['ddl', 'milestone', 'keynode'];
     return ganttCells
       .filter(gc => {
         if (!importantTypes.includes(gc.type || '')) return false;
         const d = new Date(gc.date);
-        return d >= today && d <= in14;
+        return d >= today && d <= in7;
       })
       .map(gc => {
         const task = tasks.find(t => t.id === gc.taskId);
@@ -184,7 +184,7 @@ export default function DashboardPage() {
           <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
             <span className="text-red-500">⏰</span>
             <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              未来14天 DDL / 里程碑（{ddlWarnings.length}项）
+              未来7天 DDL / 里程碑（{ddlWarnings.length}项）
             </h2>
           </div>
           <div className="divide-y divide-slate-100">
