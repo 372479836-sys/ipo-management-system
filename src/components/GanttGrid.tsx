@@ -460,33 +460,35 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
           ))}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-medium text-slate-500">周次筛选：</span>
-        <button
-          onClick={() => setSelectedWeeks(new Set())}
-          className={`px-2.5 py-1 text-[11px] rounded-lg font-medium transition-all ${
-            showAll
-              ? 'bg-brand-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600'
-          }`}
-        >
-          全部
-        </button>
-        {WEEKS.map((w, i) => (
-          <button
-            key={i}
-            onClick={() => toggleWeek(i)}
-            className={`px-2.5 py-1 text-[11px] rounded-lg font-medium transition-all ${
-              selectedWeeks.has(i)
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600'
-            }`}
-            title={w.label}
-          >
-            {w.short}
-          </button>
-        ))}
-        </div>
+        {viewMode === 'week' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-medium text-slate-500">周次筛选：</span>
+            <button
+              onClick={() => setSelectedWeeks(new Set())}
+              className={`px-2.5 py-1 text-[11px] rounded-lg font-medium transition-all ${
+                showAll
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600'
+              }`}
+            >
+              全部
+            </button>
+            {WEEKS.map((w, i) => (
+              <button
+                key={i}
+                onClick={() => toggleWeek(i)}
+                className={`px-2.5 py-1 text-[11px] rounded-lg font-medium transition-all ${
+                  selectedWeeks.has(i)
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600'
+                }`}
+                title={w.label}
+              >
+                {w.short}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 甘特网格 */}
@@ -612,69 +614,81 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
       </div>
       ) : (
         // ===== 周/月视图 =====
-        <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
-          <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
-            <div style={{ minWidth: LEFT_W + viewPeriods.length * (viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W) }}>
-              {/* 表头 */}
-              <div className="sticky top-0 z-20 bg-white flex" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200 flex items-center px-3" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30, background: '#f8fafc', height: 36 }}>
-                  <span className="text-[10px] font-medium text-slate-400">{viewMode === 'week' ? '周次' : '月份'}</span>
-                </div>
-                <div className="flex">
-                  {viewPeriods.map((p, i) => (
-                    <div key={i} className="flex-shrink-0 flex items-center justify-center text-[11px] font-semibold text-brand-600 border-b border-r border-slate-300 bg-brand-50/40" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W, height: 36 }}>
-                      {p.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
+        <div className="space-y-3">
+          {workstreams.map((ws, wsIdx) => {
+            const wsTasks = wsTaskMap[ws.id] || [];
+            // 收集该条线下所有关键节点
+            const allWsCells = wsTasks.flatMap(t => ganttCells.filter(c => c.taskId === t.id)).sort((a, b) => a.date.localeCompare(b.date));
+            if (allWsCells.length === 0) return null;
 
-              {/* 数据行：条线 → 只显示关键节点 */}
-              {workstreams.map((ws, wsIdx) => {
-                // 汇总该条线在每个时间段的所有关键节点
-                const wsTasks = wsTaskMap[ws.id] || [];
-                const hasAnyNodes = viewPeriods.some(p =>
-                  wsTasks.some(t => getNodesForDateRange(t.id, p.start, p.end).length > 0)
-                );
-                if (!hasAnyNodes) return null;
-                return (
-                  <div key={ws.id} className="flex" style={{ minHeight: ROW_H }}>
-                    <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
-                      <div className="h-full flex items-start px-3 gap-1.5 py-1.5" style={{ minHeight: ROW_H }}>
-                        <div className={`w-1.5 h-1.5 rounded-full mt-0.5 flex-shrink-0 ${WS_COLORS[wsIdx % WS_COLORS.length]}`} />
-                        <span className="text-[11px] font-semibold text-slate-700">{ws.name}</span>
-                      </div>
-                    </div>
-                    <div className="flex">
-                      {viewPeriods.map((p, i) => {
-                        const allNodes: { label: string; date: string }[] = [];
-                        wsTasks.forEach(t => {
-                          getNodesForDateRange(t.id, p.start, p.end).forEach(c => {
-                            allNodes.push({ label: c.label || '', date: c.date });
-                          });
-                        });
-                        // 按日期排序
-                        allNodes.sort((a, b) => a.date.localeCompare(b.date));
+            // 过滤出有关键节点的任务（周视图展开用）
+            const tasksWithNodes = viewMode === 'week' ? wsTasks.filter(t => ganttCells.some(c => c.taskId === t.id)) : [];
+
+            return (
+              <div key={ws.id} className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+                {/* 条线标题 */}
+                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${WS_COLORS[wsIdx % WS_COLORS.length]}`} />
+                  <span className="text-sm font-semibold text-slate-700">{ws.name}</span>
+                  <span className="text-xs text-slate-400 ml-1">{allWsCells.length} 个节点</span>
+                </div>
+
+                {viewMode === 'month' ? (
+                  /* 月视图：只显示条线级汇总，所有节点平铺 */
+                  <div className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {allWsCells.map((cell) => {
+                        const task = tasks.find(t => t.id === cell.taskId);
                         return (
-                          <div key={i} className="flex-shrink-0 border-b border-r border-slate-200 p-1.5" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W, background: allNodes.length > 0 ? WS_BG_COLORS[wsIdx % WS_BG_COLORS.length] : undefined }}>
-                            {allNodes.length > 0 && (
-                              <div className="flex flex-col gap-0.5">
-                                {allNodes.map((n, ni) => (
-                                  <div key={ni} className="text-[10px] text-slate-700 leading-tight" title={`${n.label} (${n.date})`}>
-                                    <span className="font-medium text-slate-500">{formatShort(n.date)}</span>{' '}{n.label}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                          <span
+                            key={cell.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-pink-50 text-pink-700 border border-pink-200"
+                            title={`${task?.title || ''} - ${cell.date}`}
+                          >
+                            <span className="font-medium">{cell.date.slice(5)}</span>
+                            <span>{cell.label}</span>
+                          </span>
                         );
                       })}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                ) : (
+                  /* 周视图：按任务展开 */
+                  <div className="divide-y divide-slate-100">
+                    {tasksWithNodes.map((task) => {
+                      const taskCells = ganttCells.filter(c => c.taskId === task.id).sort((a, b) => a.date.localeCompare(b.date));
+                      const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
+                      const statusColor = isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
+                      const statusText = isCompleted ? '已完成' : '进行中';
+
+                      return (
+                        <div key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
+                          <div className="flex-shrink-0 w-48">
+                            <div className="font-medium text-sm text-slate-700 mb-1">{task.title}</div>
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${statusColor}`}>
+                              {statusText}
+                            </span>
+                          </div>
+                          <div className="flex-1 flex flex-wrap gap-1.5">
+                            {taskCells.map((cell) => (
+                              <span
+                                key={cell.id}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-pink-50 text-pink-700 border border-pink-200"
+                                title={cell.date}
+                              >
+                                <span className="font-medium">{cell.date.slice(5)}</span>
+                                <span>{cell.label}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
