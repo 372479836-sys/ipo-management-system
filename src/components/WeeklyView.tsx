@@ -160,11 +160,14 @@ export default function WeeklyView({ workstreams, tasks, ganttCells }: WeeklyVie
                             {STATUS_LABEL[task.status]}
                           </span>
                         </div>
-                        {task.sponsor && (
-                          <p className="text-xs text-slate-400">
-                            {task.sponsor}{task.lawyer ? ` · ${task.lawyer}` : ''}{task.otherParty ? ` · ${task.otherParty}` : ''}
-                          </p>
-                        )}
+                        {(() => {
+                          const parts = [task.sponsor, task.lawyer, task.otherParty].filter(p => p && p.trim() !== '' && p !== '无');
+                          return parts.length > 0 ? (
+                            <p className="text-xs text-slate-400">
+                              {parts.join(' · ')}
+                            </p>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
                         {cells.sort((a, b) => a.date.localeCompare(b.date)).map(cell => (
