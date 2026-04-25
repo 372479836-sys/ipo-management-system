@@ -496,13 +496,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                           const isNode = cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode' || cellType === 'milestone';
                           const isStartOrEnd = cellType === 'start' || cellType === 'end' || cellType === 'ddl';
                           const isKeyNode = cellType === 'keynode' || cellType === 'milestone';
-                          // 已完成任务的格子用灰色覆盖
-                          let cellBg: string | undefined;
-                          if (isCompleted) {
-                            cellBg = cell && isStartOrEnd ? 'rgba(148,163,184,0.4)' : cell && isKeyNode ? 'rgba(148,163,184,0.3)' : inRange ? 'rgba(148,163,184,0.08)' : undefined;
-                          } else {
-                            cellBg = cell && isStartOrEnd ? nodeColor : cell && isKeyNode ? nodeColor : inRange ? barColor : undefined;
-                          }
+                          // 所有格子统一白底，暂时清空所有颜色
+                          const cellBg: string | undefined = undefined;
                           return (
                             <div
                               key={`${task.id}_${date}`}
