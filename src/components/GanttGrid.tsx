@@ -77,8 +77,17 @@ const MARKER_LABELS: Record<string, string> = {
 };
 
 const COL_W = 36;
+const WEEK_COL_W = 180;
+const MONTH_COL_W = 260;
 const ROW_H = 28;
+const WEEK_ROW_H = 'auto';
 const LEFT_W = 192;
+
+const MONTHS: { label: string; start: string; end: string }[] = [
+  { label: '2026年3月', start: '2026-03-30', end: '2026-03-31' },
+  { label: '2026年4月', start: '2026-04-01', end: '2026-04-30' },
+  { label: '2026年5月', start: '2026-05-01', end: '2026-05-31' },
+];
 
 function getDatesInRange(start: string, end: string): string[] {
   const dates: string[] = [];
@@ -219,6 +228,7 @@ function CellContextMenu({
 
 export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell, onMoveCell }: GanttGridProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string; cellId?: string } | null>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -421,11 +431,51 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     </>
   );
 
+  // 关键节点类型集合
+  const NODE_TYPES = new Set(['start', 'end', 'ddl', 'keynode', 'milestone']);
+
+  // 按周/月汇总关键节点
+  const getNodesForDateRange = useCallback((taskId: string, startDate: string, endDate: string) => {
+    return ganttCells.filter(c =>
+      c.taskId === taskId &&
+      NODE_TYPES.has(c.type || '') &&
+      c.date >= startDate &&
+      c.date <= endDate
+    ).sort((a, b) => a.date.localeCompare(b.date));
+  }, [ganttCells]);
+
+  // 周/月视图的时间段
+  const viewPeriods = useMemo(() => {
+    if (viewMode === 'week') {
+      if (showAll) return WEEKS;
+      return Array.from(selectedWeeks).sort((a, b) => a - b).map(i => WEEKS[i]);
+    }
+    if (viewMode === 'month') return MONTHS;
+    return [];
+  }, [viewMode, showAll, selectedWeeks]);
+
   return (
     <div className="space-y-3">
-      {/* 周次筛选器 */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] font-medium text-slate-500">周次筛选：</span>
+      {/* 视图切换 + 周次筛选器 */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+          {(['day', 'week', 'month'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={`px-3 py-1 text-[11px] rounded-md font-medium transition-all ${
+                viewMode === mode
+                  ? 'bg-white text-brand-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {mode === 'day' ? '日' : mode === 'week' ? '周' : '月'}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-medium text-slate-500">周次筛选：</span>
         <button
           onClick={() => setSelectedWeeks(new Set())}
           className={`px-2.5 py-1 text-[11px] rounded-lg font-medium transition-all ${
@@ -450,10 +500,13 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
             {w.short}
           </button>
         ))}
+        </div>
       </div>
 
       {/* 甘特网格 */}
-      <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+      {viewMode === 'day' ? (
+        // ===== 日视图 =====
+        <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
         {/* 顶部滚动条 */}
         <div
           ref={topScrollRef}
@@ -528,8 +581,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                           const isNode = cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode' || cellType === 'milestone';
                           const isStartOrEnd = cellType === 'start' || cellType === 'end' || cellType === 'ddl';
                           const isKeyNode = cellType === 'keynode' || cellType === 'milestone';
-                          // 所有格子统一白底，暂时清空所有颜色
-                          const cellBg: string | undefined = undefined;
+                          // 区间内格子用条线底色，节点加深
+                          const cellBg: string | undefined = isNode ? nodeColor : inRange ? barColor : undefined;
                           return (
                             <div
                               key={`${task.id}_${date}`}
@@ -564,17 +617,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                   </span>
                                 </div>
                               )}
-                              {cell && !isNode && (
-                                <div
-                                  className={`absolute inset-0.5 rounded flex items-center justify-center text-white text-[8px] font-medium leading-tight px-0.5 ${
-                                    MARKER_STYLES[cellType] || 'bg-brand-500'
-                                  } ${onRemoveCell ? 'cursor-pointer' : ''}`}
-                                  style={{ zIndex: 2 }}
-                                  title={cell.label ? `${cell.label} (${cell.date})` : cell.date}
-                                >
-                                  <span className="truncate">{cell.label}</span>
-                                </div>
-                              )}
+                              {/* event/progress 类型格子不渲染（前端过滤） */}
                             </div>
                           );
                         })}
@@ -587,6 +630,103 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
           </div>
         </div>
       </div>
+      ) : (
+        // ===== 周/月视图 =====
+        <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+            <div style={{ minWidth: LEFT_W + viewPeriods.length * (viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W) }}>
+              {/* 表头 */}
+              <div className="sticky top-0 z-20 bg-white flex" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                <div className="flex-shrink-0 bg-slate-50 border-b border-r border-slate-200 flex items-center px-3" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30, background: '#f8fafc', height: 36 }}>
+                  <span className="text-[10px] font-medium text-slate-400">{viewMode === 'week' ? '周次' : '月份'}</span>
+                </div>
+                <div className="flex">
+                  {viewPeriods.map((p, i) => (
+                    <div key={i} className="flex-shrink-0 flex items-center justify-center text-[11px] font-semibold text-brand-600 border-b border-r border-slate-300 bg-brand-50/40" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W, height: 36 }}>
+                      {p.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 数据行 */}
+              {workstreams.map((ws, wsIdx) => (
+                <React.Fragment key={ws.id}>
+                  {/* 条线标题行 */}
+                  <div className="flex" style={{ minHeight: ROW_H }}>
+                    <div className="flex-shrink-0 bg-slate-100 border-b border-r border-slate-200" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
+                      <div className="h-full flex items-center px-3 gap-1.5" style={{ minHeight: ROW_H }}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${WS_COLORS[wsIdx % WS_COLORS.length]}`} />
+                        <span className="text-[11px] font-semibold text-slate-700">{ws.name}</span>
+                        <span className="text-[10px] text-slate-400">({wsTaskMap[ws.id]?.length || 0})</span>
+                      </div>
+                    </div>
+                    <div className="flex">
+                      {viewPeriods.map((p, i) => {
+                        // 汇总该条线下所有任务在此时间段的关键节点
+                        const wsTasks = wsTaskMap[ws.id] || [];
+                        const allNodes: { taskTitle: string; type: string; label: string; date: string }[] = [];
+                        wsTasks.forEach(t => {
+                          getNodesForDateRange(t.id, p.start, p.end).forEach(c => {
+                            allNodes.push({ taskTitle: t.title, type: c.type || '', label: c.label || '', date: c.date });
+                          });
+                        });
+                        return (
+                          <div key={i} className="flex-shrink-0 border-b border-r border-slate-200 p-1.5" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W, background: allNodes.length > 0 ? WS_BG_COLORS[wsIdx % WS_BG_COLORS.length] : undefined }}>
+                            {allNodes.length > 0 && (
+                              <div className="flex flex-col gap-0.5">
+                                {allNodes.map((n, ni) => (
+                                  <div key={ni} className="text-[9px] text-slate-600 leading-tight truncate" title={`${n.taskTitle} - ${n.label || n.type} (${n.date})`}>
+                                    <span className="text-[8px]">{n.type === 'ddl' ? '⏰' : n.type === 'keynode' || n.type === 'milestone' ? '⭐' : n.type === 'start' ? '▶' : '⏹'}</span>
+                                    {' '}{formatShort(n.date)} {n.label || n.taskTitle}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 任务行 */}
+                  {(wsTaskMap[ws.id] || []).map((task) => {
+                    const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
+                    return (
+                      <div key={task.id} className={`flex ${isCompleted ? 'opacity-50' : ''}`} style={{ minHeight: ROW_H }}>
+                        <div className="flex-shrink-0 border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10, background: isCompleted ? '#f8fafc' : 'white' }}>
+                          <div className="h-full flex items-center px-3" style={{ minHeight: ROW_H }}>
+                            <span className={`text-[11px] truncate ${isCompleted ? 'line-through text-slate-400' : 'text-slate-700'}`} title={task.title}>{task.title}</span>
+                          </div>
+                        </div>
+                        <div className="flex">
+                          {viewPeriods.map((p, i) => {
+                            const nodes = getNodesForDateRange(task.id, p.start, p.end);
+                            return (
+                              <div key={i} className="flex-shrink-0 border-b border-r border-slate-100 p-1" style={{ width: viewMode === 'week' ? WEEK_COL_W : MONTH_COL_W }}>
+                                {nodes.length > 0 && (
+                                  <div className="flex flex-col gap-0.5">
+                                    {nodes.map((n, ni) => (
+                                      <div key={ni} className="text-[9px] text-slate-600 leading-tight truncate" title={`${n.label || n.type} (${n.date})`}>
+                                        <span className="text-[8px]">{n.type === 'ddl' ? '⏰' : n.type === 'keynode' || n.type === 'milestone' ? '⭐' : n.type === 'start' ? '▶' : '⏹'}</span>
+                                        {' '}{formatShort(n.date)} {n.label || task.title}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 左键菜单 */}
       {ctxMenu && (() => {
