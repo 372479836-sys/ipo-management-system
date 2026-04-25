@@ -150,7 +150,13 @@ for row_idx in range(header_row + 1, ws.max_row + 1):
             cell_type = 'event'  # 浅蓝=条线范围
         
         if cell_type:
-            label = str(cell.value).strip() if cell.value else ''
+            # DDL节点的label来自下方行的说明文字
+            if cell_type == 'ddl':
+                below_cell = ws.cell(row_idx + 1, col_idx + 1)
+                label = str(below_cell.value).strip() if below_cell.value else ''
+            else:
+                label = str(cell.value).strip() if cell.value else ''
+            
             all_gantt.append({
                 'id': str(uuid4()),
                 'task_id': task_id,

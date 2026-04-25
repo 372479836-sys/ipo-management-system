@@ -38,18 +38,19 @@ const WS_COLORS = [
   'bg-slate-500',
 ];
 
+/* 三层颜色：淡底色(0.08) → 条线区间稍深(0.18) → 节点深色(0.5) */
 const WS_BAR_COLORS = [
-  'rgba(99,102,241,0.25)', 'rgba(139,92,246,0.25)', 'rgba(6,182,212,0.25)', 'rgba(16,185,129,0.25)',
-  'rgba(245,158,11,0.25)', 'rgba(244,63,94,0.25)', 'rgba(249,115,22,0.25)', 'rgba(20,184,166,0.25)',
-  'rgba(14,165,233,0.25)', 'rgba(168,85,247,0.25)', 'rgba(236,72,153,0.25)', 'rgba(132,204,22,0.25)',
-  'rgba(100,116,139,0.25)',
+  'rgba(99,102,241,0.18)', 'rgba(139,92,246,0.18)', 'rgba(6,182,212,0.18)', 'rgba(16,185,129,0.18)',
+  'rgba(245,158,11,0.18)', 'rgba(244,63,94,0.18)', 'rgba(249,115,22,0.18)', 'rgba(20,184,166,0.18)',
+  'rgba(14,165,233,0.18)', 'rgba(168,85,247,0.18)', 'rgba(236,72,153,0.18)', 'rgba(132,204,22,0.18)',
+  'rgba(100,116,139,0.18)',
 ];
 
 const WS_NODE_COLORS = [
-  'rgba(99,102,241,0.7)', 'rgba(139,92,246,0.7)', 'rgba(6,182,212,0.7)', 'rgba(16,185,129,0.7)',
-  'rgba(245,158,11,0.7)', 'rgba(244,63,94,0.7)', 'rgba(249,115,22,0.7)', 'rgba(20,184,166,0.7)',
-  'rgba(14,165,233,0.7)', 'rgba(168,85,247,0.7)', 'rgba(236,72,153,0.7)', 'rgba(132,204,22,0.7)',
-  'rgba(100,116,139,0.7)',
+  'rgba(99,102,241,0.5)', 'rgba(139,92,246,0.5)', 'rgba(6,182,212,0.5)', 'rgba(16,185,129,0.5)',
+  'rgba(245,158,11,0.5)', 'rgba(244,63,94,0.5)', 'rgba(249,115,22,0.5)', 'rgba(20,184,166,0.5)',
+  'rgba(14,165,233,0.5)', 'rgba(168,85,247,0.5)', 'rgba(236,72,153,0.5)', 'rgba(132,204,22,0.5)',
+  'rgba(100,116,139,0.5)',
 ];
 
 const WS_BG_COLORS = [
@@ -529,7 +530,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                   }}
                                   className="cursor-pointer flex items-center justify-center w-full h-full"
                                   style={{ zIndex: 2 }}
-                                  title={`${cell.label} (${cell.date})`}
+                                  title={cell.label ? `${cell.label} (${cell.date})` : cell.date}
                                 >
                                   <span className="text-white text-[8px] font-bold drop-shadow-sm">
                                     {cellType === 'start' ? '▶' : cellType === 'end' || cellType === 'ddl' ? '■' : '★'}
@@ -542,7 +543,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                     MARKER_STYLES[cellType] || 'bg-brand-500'
                                   } ${onRemoveCell ? 'cursor-pointer' : ''}`}
                                   style={{ zIndex: 2 }}
-                                  title={`${cell.label} (${cell.date})`}
+                                  title={cell.label ? `${cell.label} (${cell.date})` : cell.date}
                                 >
                                   <span className="truncate">{cell.label}</span>
                                 </div>
