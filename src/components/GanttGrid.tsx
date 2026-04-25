@@ -438,24 +438,8 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
 
   return (
     <div className="space-y-3">
-      {/* 视图切换 + 周次筛选器 */}
+      {/* 周次筛选器 */}
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
-          {(['day', 'week'] as const).map(mode => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`px-3 py-1 text-[11px] rounded-md font-medium transition-all ${
-                viewMode === mode
-                  ? 'bg-white text-brand-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {mode === 'day' ? '日视图' : '周次视图'}
-            </button>
-          ))}
-        </div>
-
         {viewMode === 'week' && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-medium text-slate-500">周次筛选：</span>

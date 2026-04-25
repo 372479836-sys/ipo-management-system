@@ -7,7 +7,7 @@ import WeeklyView from '@/components/WeeklyView';
 import MonthlyView from '@/components/MonthlyView';
 
 
-type ViewTab = 'daily' | 'weekly' | 'monthly';
+type ViewTab = 'daily' | 'weekly';
 
 export default function GanttPage() {
   const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell, isLocalMode, setLocalMode, syncToCloud, pullFromCloud, updateTask } = useIpoData();
@@ -167,19 +167,6 @@ export default function GanttPage() {
             </svg>
             周次视图
           </button>
-          <button
-            onClick={() => setActiveTab('monthly')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              activeTab === 'monthly'
-                ? 'bg-white text-brand-700 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            月视图
-          </button>
         </div>
       )}
 
@@ -230,14 +217,6 @@ export default function GanttPage() {
 
       {!loading && tasks.length > 0 && activeTab === 'weekly' && (
         <WeeklyView
-          workstreams={workstreams}
-          tasks={tasks}
-          ganttCells={ganttCells}
-        />
-      )}
-
-      {!loading && tasks.length > 0 && activeTab === 'monthly' && (
-        <MonthlyView
           workstreams={workstreams}
           tasks={tasks}
           ganttCells={ganttCells}
