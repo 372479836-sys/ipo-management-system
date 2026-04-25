@@ -50,12 +50,25 @@ function inWeek(dateStr: string, week: WeekDef): boolean {
 }
 
 export default function WeeklyView({ workstreams, tasks, ganttCells }: WeeklyViewProps) {
-  const [selectedWeek, setSelectedWeek] = useState(0);
-  const week = WEEKS[selectedWeek];
+  const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(() => new Set([0]));
 
-  // 本周有事件的 task IDs
+  const toggleWeek = (i: number) => {
+    setSelectedWeeks(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) {
+        if (next.size > 1) next.delete(i); // 至少保留一个
+      } else {
+        next.add(i);
+      }
+      return next;
+    });
+  };
+
+  const selectedWeekDefs = WEEKS.filter((_, i) => selectedWeeks.has(i));
+
+  // 所有选中周的事件
   const weekData = useMemo(() => {
-    const weekCells = ganttCells.filter(gc => inWeek(gc.date, week));
+    const weekCells = ganttCells.filter(gc => selectedWeekDefs.some(w => inWeek(gc.date, w)));
     const taskIdsWithEvents = new Set(weekCells.map(gc => gc.taskId));
     const cellsByTask: Record<string, GanttCell[]> = {};
     weekCells.forEach(gc => {
@@ -63,7 +76,7 @@ export default function WeeklyView({ workstreams, tasks, ganttCells }: WeeklyVie
       cellsByTask[gc.taskId].push(gc);
     });
     return { taskIdsWithEvents, cellsByTask };
-  }, [ganttCells, week]);
+  }, [ganttCells, selectedWeekDefs]);
 
   // 按条线分组
   const wsGroups = useMemo(() => {
@@ -85,9 +98,9 @@ export default function WeeklyView({ workstreams, tasks, ganttCells }: WeeklyVie
           {WEEKS.map((w, i) => (
             <button
               key={i}
-              onClick={() => setSelectedWeek(i)}
+              onClick={() => toggleWeek(i)}
               className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
-                i === selectedWeek
+                selectedWeeks.has(i)
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600'
               }`}
@@ -102,30 +115,14 @@ export default function WeeklyView({ workstreams, tasks, ganttCells }: WeeklyVie
       <div className="bg-gradient-to-r from-brand-50 to-violet-50 rounded-xl border border-brand-100 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-800">{week.label}</h3>
+            <h3 className="text-lg font-semibold text-slate-800">
+              {selectedWeeks.size === 1 
+                ? selectedWeekDefs[0].label
+                : `已选 ${selectedWeeks.size} 个周次`}
+            </h3>
             <p className="text-sm text-slate-500 mt-0.5">
               {wsGroups.length} 个条线有活动 · {totalEvents} 个事件节点
             </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedWeek(Math.max(0, selectedWeek - 1))}
-              disabled={selectedWeek === 0}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-brand-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setSelectedWeek(Math.min(WEEKS.length - 1, selectedWeek + 1))}
-              disabled={selectedWeek === WEEKS.length - 1}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-brand-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
