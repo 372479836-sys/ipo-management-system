@@ -4,9 +4,6 @@ import React from 'react';
 import { useIpoData } from '@/context/IpoDataContext';
 import WorkstreamSection from '@/components/WorkstreamSection';
 import KanbanBoard from '@/components/KanbanBoard';
-import ExcelImport from '@/components/ExcelImport';
-import ExportButtons from '@/components/ExportButtons';
-
 export default function WorkstreamsPage() {
   const { data, hasImported, updateTask } = useIpoData();
   const { workstreams, tasks } = data;
@@ -57,10 +54,7 @@ export default function WorkstreamsPage() {
         {hasImported && (
           <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
         )}
-        <ExportButtons tasks={filteredTasks} workstreams={workstreams} />
       </div>
-
-      <ExcelImport />
 
       {viewMode === 'kanban' ? (
         <KanbanBoard tasks={filteredTasks} workstreams={workstreams} onUpdateTask={updateTask} />

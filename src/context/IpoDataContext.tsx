@@ -53,6 +53,11 @@ interface IpoDataContextType {
   addGanttCell: (cell: GanttCell) => void;
   removeGanttCell: (cellId: string) => void;
   moveGanttCell: (cellId: string, newDate: string) => void;
+  addWorkstream: (name: string) => Promise<void>;
+  removeWorkstream: (wsId: string) => Promise<void>;
+  renameWorkstream: (wsId: string, newName: string) => Promise<void>;
+  addTask: (workstreamId: string, title: string) => Promise<void>;
+  removeTask: (taskId: string) => Promise<void>;
 }
 
 const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [] };
@@ -511,6 +516,102 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const addWorkstream = async (name: string) => {
+    const maxSort = data.workstreams.reduce((m, w) => Math.max(m, w.sortOrder), 0);
+    if (isLocalMode) {
+      const ws: Workstream = { id: crypto.randomUUID(), name, sortOrder: maxSort + 1 };
+      setData((prev) => {
+        const next = { ...prev, workstreams: [...prev.workstreams, ws] };
+        saveLocalData(next);
+        return next;
+      });
+      return;
+    }
+    const projectId = await getOrCreateProjectId();
+    const id = crypto.randomUUID();
+    const { error: e } = await supabase.from('workstreams').insert({ id, project_id: projectId, name, sort_order: maxSort + 1 });
+    if (e) throw new Error(`addWorkstream: ${e.message}`);
+    setData((prev) => ({ ...prev, workstreams: [...prev.workstreams, { id, name, sortOrder: maxSort + 1 }] }));
+  };
+
+  const removeWorkstream = async (wsId: string) => {
+    if (isLocalMode) {
+      setData((prev) => {
+        const next = {
+          ...prev,
+          workstreams: prev.workstreams.filter((w) => w.id !== wsId),
+          tasks: prev.tasks.filter((t) => t.workstreamId !== wsId),
+          ganttCells: prev.ganttCells.filter((c) => !prev.tasks.some((t) => t.workstreamId === wsId && t.id === c.taskId)),
+        };
+        saveLocalData(next);
+        return next;
+      });
+      return;
+    }
+    const taskIds = data.tasks.filter((t) => t.workstreamId === wsId).map((t) => t.id);
+    if (taskIds.length > 0) {
+      await supabase.from('gantt_cells').delete().in('task_id', taskIds);
+      await supabase.from('tasks').delete().in('id', taskIds);
+    }
+    const { error: e } = await supabase.from('workstreams').delete().eq('id', wsId);
+    if (e) throw new Error(`removeWorkstream: ${e.message}`);
+    setData((prev) => ({
+      ...prev,
+      workstreams: prev.workstreams.filter((w) => w.id !== wsId),
+      tasks: prev.tasks.filter((t) => t.workstreamId !== wsId),
+      ganttCells: prev.ganttCells.filter((c) => !taskIds.includes(c.taskId)),
+    }));
+  };
+
+  const renameWorkstream = async (wsId: string, newName: string) => {
+    if (isLocalMode) {
+      setData((prev) => {
+        const next = { ...prev, workstreams: prev.workstreams.map((w) => (w.id === wsId ? { ...w, name: newName } : w)) };
+        saveLocalData(next);
+        return next;
+      });
+      return;
+    }
+    const { error: e } = await supabase.from('workstreams').update({ name: newName }).eq('id', wsId);
+    if (e) throw new Error(`renameWorkstream: ${e.message}`);
+    setData((prev) => ({ ...prev, workstreams: prev.workstreams.map((w) => (w.id === wsId ? { ...w, name: newName } : w)) }));
+  };
+
+  const addTask = async (workstreamId: string, title: string) => {
+    if (isLocalMode) {
+      const t: Task = { id: crypto.randomUUID(), workstreamId, title, sponsor: '', lawyer: '', otherParty: '', currentProgress: '', currentBlocker: '', nextStep: '', status: 'pending' };
+      setData((prev) => {
+        const next = { ...prev, tasks: [...prev.tasks, t] };
+        saveLocalData(next);
+        return next;
+      });
+      return;
+    }
+    const projectId = await getOrCreateProjectId();
+    const id = crypto.randomUUID();
+    const { error: e } = await supabase.from('tasks').insert({ id, project_id: projectId, workstream_id: workstreamId, title, status: 'pending' });
+    if (e) throw new Error(`addTask: ${e.message}`);
+    setData((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, { id, workstreamId, title, sponsor: '', lawyer: '', otherParty: '', currentProgress: '', currentBlocker: '', nextStep: '', status: 'pending' as const }],
+    }));
+  };
+
+  const removeTask = async (taskId: string) => {
+    if (isLocalMode) {
+      setData((prev) => {
+        const next = { ...prev, tasks: prev.tasks.filter((t) => t.id !== taskId), ganttCells: prev.ganttCells.filter((c) => c.taskId !== taskId) };
+        saveLocalData(next);
+        return next;
+      });
+      return;
+    }
+    await supabase.from('gantt_cells').delete().eq('task_id', taskId);
+    const { error: e } = await supabase.from('tasks').delete().eq('id', taskId);
+    if (e) throw new Error(`removeTask: ${e.message}`);
+    setData((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== taskId), ganttCells: prev.ganttCells.filter((c) => c.taskId !== taskId) }));
+  };
+
   return (
     <IpoDataContext.Provider
       value={{
@@ -533,6 +634,11 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
         addGanttCell,
         removeGanttCell,
         moveGanttCell,
+        addWorkstream,
+        removeWorkstream,
+        renameWorkstream,
+        addTask,
+        removeTask,
       }}
     >
       {children}

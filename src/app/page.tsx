@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import ExcelImport from '@/components/ExcelImport';
 
 export default function HomePage() {
   return (
@@ -24,24 +23,20 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 导入区域 */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">数据导入</h2>
-        <ExcelImport />
-      </div>
-
       {/* 快速入口 */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { href: '/dashboard', label: 'Dashboard', desc: '项目整体进度概览' },
-          { href: '/workstreams', label: '条线视图', desc: '按条线分类查看所有事项' },
-          { href: '/gantt', label: '甘特图', desc: '时间轴上的进度可视化' },
+          { href: '/dashboard', label: 'Dashboard', desc: '项目整体进度概览', icon: '📊' },
+          { href: '/workstreams', label: '条线视图', desc: '按条线分类查看所有事项', icon: '📋' },
+          { href: '/gantt', label: '甘特图', desc: '时间轴上的进度可视化', icon: '📅' },
+          { href: '/admin', label: '管理', desc: 'Excel导入 · 数据管理', icon: '⚙️' },
         ].map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-brand-300 hover:shadow-md transition-all group"
           >
+            <div className="text-lg mb-1">{item.icon}</div>
             <h3 className="font-semibold text-sm text-slate-800 group-hover:text-brand-600 transition-colors">{item.label}</h3>
             <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
           </Link>

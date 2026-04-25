@@ -5,7 +5,7 @@ import { useIpoData } from '@/context/IpoDataContext';
 import GanttGrid from '@/components/GanttGrid';
 import WeeklyView from '@/components/WeeklyView';
 import MonthlyView from '@/components/MonthlyView';
-import ExcelImport from '@/components/ExcelImport';
+
 
 type ViewTab = 'daily' | 'weekly' | 'monthly';
 
@@ -102,8 +102,6 @@ export default function GanttPage() {
           )}
         </div>
       </div>
-
-      <ExcelImport />
 
       {/* Tab 切换 */}
       {!loading && tasks.length > 0 && (
