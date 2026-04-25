@@ -61,9 +61,6 @@ const WS_BG_COLORS = [
 ];
 
 const MARKER_STYLES: Record<string, string> = {
-  start: 'bg-green-500',
-  end: 'bg-red-300',
-  ddl: 'bg-red-300',
   keynode: 'bg-amber-500',
   milestone: 'bg-amber-500',
   event: 'bg-brand-500',
@@ -71,9 +68,7 @@ const MARKER_STYLES: Record<string, string> = {
 };
 
 const MARKER_LABELS: Record<string, string> = {
-  start: '▶ 开始',
-  ddl: '⏰ DDL',
-  keynode: '⭐ 关键',
+  keynode: '⭐ 关键节点',
 };
 
 const COL_W = 36;
@@ -201,17 +196,7 @@ function CellContextMenu({
           </div>
         ) : (
           <>
-            <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">标注节点</div>
-            {(['start', 'ddl'] as const).map(type => (
-              <button
-                key={type}
-                onClick={() => { onAdd(type); onClose(); }}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex items-center gap-2"
-              >
-                <span className={`w-2 h-2 rounded-full ${MARKER_STYLES[type]}`} />
-                {MARKER_LABELS[type]}
-              </button>
-            ))}
+            <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">添加关键节点</div>
             <button
               onClick={() => setShowKeynodeInput(true)}
               className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex items-center gap-2"
@@ -577,12 +562,9 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                         {allDates.map((date, dateIdx) => {
                           const cell = cellMap[`${task.id}_${date}`];
                           const isBoundary = weekBoundaries.has(date);
-                          const cellType = cell?.type || 'event';
                           const inRange = bar && dateIdx >= bar.startIdx && dateIdx <= bar.endIdx;
-                          const isNode = cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode' || cellType === 'milestone';
-                          const isStartOrEnd = cellType === 'start' || cellType === 'end' || cellType === 'ddl';
-                          const isKeyNode = cellType === 'keynode' || cellType === 'milestone';
-                          // 区间内格子用条线底色，节点加深
+                          const isNode = !!cell;
+                          // 节点加深，区间内浅色，其余无色
                           const cellBg: string | undefined = isNode ? nodeColor : inRange ? barColor : undefined;
                           return (
                             <div
@@ -602,9 +584,9 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                 if (cellId && onMoveCell) onMoveCell(cellId, date);
                               }}
                             >
-                              {cell && isNode && (
+                              {isNode && (
                                 <div
-                                  draggable={!!(onMoveCell && isNode)}
+                                  draggable={!!onMoveCell}
                                   onDragStart={(e) => {
                                     e.dataTransfer.setData('text/cell-id', cell.id);
                                     e.dataTransfer.effectAllowed = 'move';
@@ -613,12 +595,9 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                   style={{ zIndex: 2 }}
                                   title={cell.label ? `${cell.label} (${cell.date})` : cell.date}
                                 >
-                                  <span className="text-white text-[8px] font-bold drop-shadow-sm">
-                                    {cellType === 'start' ? '▶' : cellType === 'end' || cellType === 'ddl' ? '■' : '★'}
-                                  </span>
+                                  <span className="text-white text-[8px] font-bold drop-shadow-sm">★</span>
                                 </div>
                               )}
-                              {/* event/progress 类型格子不渲染（前端过滤） */}
                             </div>
                           );
                         })}
