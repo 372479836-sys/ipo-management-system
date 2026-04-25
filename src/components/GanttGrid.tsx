@@ -54,6 +54,13 @@ const WS_BAR_GRADIENTS = [
   'from-slate-300/70 to-slate-500/40',
 ];
 
+const WS_BG_COLORS = [
+  'rgba(99,102,241,0.06)', 'rgba(139,92,246,0.06)', 'rgba(6,182,212,0.06)', 'rgba(16,185,129,0.06)',
+  'rgba(245,158,11,0.06)', 'rgba(244,63,94,0.06)', 'rgba(249,115,22,0.06)', 'rgba(20,184,166,0.06)',
+  'rgba(14,165,233,0.06)', 'rgba(168,85,247,0.06)', 'rgba(236,72,153,0.06)', 'rgba(132,204,22,0.06)',
+  'rgba(100,116,139,0.06)',
+];
+
 const MARKER_STYLES: Record<string, string> = {
   start: 'bg-green-500',
   ddl: 'bg-red-500',
@@ -391,6 +398,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                 {(wsTaskMap[ws.id] || []).map((task) => {
                   const bar = taskBarRanges[task.id];
                   const barGradient = WS_BAR_GRADIENTS[wsIdx % WS_BAR_GRADIENTS.length];
+                  const bgColor = WS_BG_COLORS[wsIdx % WS_BG_COLORS.length];
                   return (
                     <div key={task.id} className="flex" style={{ height: ROW_H }}>
                       <div className="flex-shrink-0 bg-white border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
@@ -411,17 +419,18 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                             }}
                           />
                         )}
-                        {allDates.map((date) => {
+                        {allDates.map((date, dateIdx) => {
                           const cell = cellMap[`${task.id}_${date}`];
                           const isBoundary = weekBoundaries.has(date);
                           const cellType = cell?.type || 'event';
+                          const inRange = bar && dateIdx >= bar.startIdx && dateIdx <= bar.endIdx;
                           return (
                             <div
                               key={`${task.id}_${date}`}
                               className={`flex-shrink-0 border-r ${isBoundary ? 'border-r-slate-300' : 'border-r-slate-50'} border-b border-b-slate-100 flex items-center justify-center relative ${
                                 isWeekend(date) ? 'bg-slate-50/50' : ''
                               } ${date === today ? 'bg-brand-50/30' : ''}`}
-                              style={{ width: COL_W }}
+                              style={{ width: COL_W, backgroundColor: inRange ? bgColor : undefined }}
                               onContextMenu={(e) => handleContextMenu(e, task.id, date)}
                               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
                               onDrop={(e) => {

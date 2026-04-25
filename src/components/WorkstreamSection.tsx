@@ -5,9 +5,14 @@ import { Task, TaskStatus, STATUS_LABEL, STATUS_COLOR } from '@/types/ipo';
 
 interface WorkstreamSectionProps {
   workstreamName: string;
+  workstreamId: string;
   tasks: Task[];
   defaultOpen?: boolean;
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
+  onAddTask?: (workstreamId: string, title: string) => void;
+  onRemoveTask?: (taskId: string) => void;
+  onRenameWorkstream?: (wsId: string, newName: string) => void;
+  onRemoveWorkstream?: (wsId: string) => void;
 }
 
 /* 行内编辑单元格 */
@@ -99,13 +104,41 @@ function StatusSelect({
   );
 }
 
-export default function WorkstreamSection({ workstreamName, tasks, defaultOpen = true, onUpdateTask }: WorkstreamSectionProps) {
+export default function WorkstreamSection({ 
+  workstreamName, 
+  workstreamId,
+  tasks, 
+  defaultOpen = true, 
+  onUpdateTask,
+  onAddTask,
+  onRemoveTask,
+  onRenameWorkstream,
+  onRemoveWorkstream
+}: WorkstreamSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [editingWsName, setEditingWsName] = useState(false);
+  const [wsNameDraft, setWsNameDraft] = useState(workstreamName);
   const completed = tasks.filter(t => t.status === 'completed').length;
   const total = tasks.length;
 
   const handleUpdate = (taskId: string, updates: Partial<Task>) => {
     if (onUpdateTask) onUpdateTask(taskId, updates);
+  };
+
+  const handleAddTask = () => {
+    if (newTaskTitle.trim() && onAddTask) {
+      onAddTask(workstreamId, newTaskTitle.trim());
+      setNewTaskTitle('');
+      setAddingTask(false);
+    }
+  };
+
+  const handleRemoveTask = (taskId: string) => {
+    if (onRemoveTask && confirm('确认删除此事项？')) {
+      onRemoveTask(taskId);
+    }
   };
 
   /* 拼接负责机构小字 */
@@ -125,16 +158,44 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
     <div className="mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
       <div
         className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 cursor-pointer select-none hover:bg-slate-100/80 transition-colors"
-        onClick={() => setOpen(!open)}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={() => setOpen(!open)}>
           <span className={`text-slate-400 text-[11px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
           <div>
-            <h3 className="font-semibold text-slate-800 text-[13px]">{workstreamName}</h3>
+            {editingWsName ? (
+              <input
+                value={wsNameDraft}
+                onChange={e => setWsNameDraft(e.target.value)}
+                onBlur={() => {
+                  setEditingWsName(false);
+                  if (wsNameDraft.trim() && wsNameDraft !== workstreamName && onRenameWorkstream) {
+                    onRenameWorkstream(workstreamId, wsNameDraft.trim());
+                  } else {
+                    setWsNameDraft(workstreamName);
+                  }
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  if (e.key === 'Escape') { setWsNameDraft(workstreamName); setEditingWsName(false); }
+                }}
+                onClick={e => e.stopPropagation()}
+                className="font-semibold text-slate-800 text-[13px] border border-brand-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                autoFocus
+              />
+            ) : (
+              <h3
+                className="font-semibold text-slate-800 text-[13px] hover:text-brand-600"
+                onDoubleClick={e => { e.stopPropagation(); setEditingWsName(true); }}
+                title="双击重命名"
+              >
+                {workstreamName}
+              </h3>
+            )}
             <p className="text-[11px] text-slate-500 mt-0.5">{completed}/{total} 项已完成</p>
           </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
           {(['pending', 'in_progress', 'completed', 'blocked'] as TaskStatus[]).map((s) => {
             const count = tasks.filter(t => t.status === s).length;
             if (count === 0) return null;
@@ -144,9 +205,56 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
               </span>
             );
           })}
+          </div>
+          {onRemoveWorkstream && (
+            <button
+              onClick={(e) => { e.stopPropagation(); if (confirm(`确认删除条线「${workstreamName}」及其所有事项？`)) onRemoveWorkstream(workstreamId); }}
+              className="text-red-400 hover:text-red-600 text-xs ml-1"
+              title="删除条线"
+            >
+              🗑️
+            </button>
+          )}
         </div>
       </div>
       {open && <div className="overflow-x-auto">
+        <div className="px-3 py-2 border-b border-slate-100 flex justify-end">
+          {!addingTask ? (
+            <button
+              onClick={() => setAddingTask(true)}
+              className="text-xs px-3 py-1 bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+            >
+              + 新增事项
+            </button>
+          ) : (
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={newTaskTitle}
+                onChange={e => setNewTaskTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleAddTask();
+                  if (e.key === 'Escape') { setNewTaskTitle(''); setAddingTask(false); }
+                }}
+                placeholder="输入事项名称..."
+                className="text-xs border border-slate-300 rounded px-2 py-1 w-64 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                autoFocus
+              />
+              <button
+                onClick={handleAddTask}
+                className="text-xs px-3 py-1 bg-brand-500 text-white rounded hover:bg-brand-600"
+              >
+                确定
+              </button>
+              <button
+                onClick={() => { setNewTaskTitle(''); setAddingTask(false); }}
+                className="text-xs px-3 py-1 bg-slate-200 text-slate-700 rounded hover:bg-slate-300"
+              >
+                取消
+              </button>
+            </div>
+          )}
+        </div>
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-white">
@@ -156,6 +264,7 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[200px]">备注</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">负责人</th>
               <th className="text-center py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">状态</th>
+              <th className="text-center py-2 px-3 text-slate-400 font-medium text-[11px] w-[50px]">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -215,6 +324,15 @@ export default function WorkstreamSection({ workstreamName, tasks, defaultOpen =
                       value={task.status}
                       onChange={v => handleUpdate(task.id, { status: v })}
                     />
+                  </td>
+                  <td className="py-2 px-3 text-center">
+                    <button
+                      onClick={() => handleRemoveTask(task.id)}
+                      className="text-red-500 hover:text-red-700 text-xs"
+                      title="删除事项"
+                    >
+                      🗑️
+                    </button>
                   </td>
                 </tr>
               );

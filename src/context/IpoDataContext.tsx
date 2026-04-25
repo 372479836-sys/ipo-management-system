@@ -165,8 +165,22 @@ async function deleteProjectGanttCells(projectId: string) {
 
 async function clearProjectData(projectId: string) {
   await deleteProjectGanttCells(projectId);
-  await supabase.from('tasks').delete().eq('project_id', projectId);
-  await supabase.from('workstreams').delete().eq('project_id', projectId);
+
+  const { error: taskDeleteError } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('project_id', projectId);
+  if (taskDeleteError) {
+    throw new Error(`tasks delete: ${taskDeleteError.message}`);
+  }
+
+  const { error: wsDeleteError } = await supabase
+    .from('workstreams')
+    .delete()
+    .eq('project_id', projectId);
+  if (wsDeleteError) {
+    throw new Error(`workstreams delete: ${wsDeleteError.message}`);
+  }
 }
 
 function buildUuidMaps(sourceData: IpoProjectData) {
@@ -476,21 +490,17 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
   };
 
   const syncToCloud = async () => {
-    const localData = loadLocalData();
-    if (!localData || localData.tasks.length === 0) {
-      throw new Error('本地无数据可同步');
-    }
     setLoading(true);
     setError(null);
     try {
       const projectId = await getOrCreateProjectId();
+      const currentData = data;
       await clearProjectData(projectId);
-      await persistFullDataset(projectId, localData);
-      setIsLocalMode(false);
-      saveLocalMode(false);
-      await refresh();
+      await persistFullDataset(projectId, currentData);
+      setLastSyncTime(new Date().toISOString());
     } catch (e: any) {
       setError(e.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -500,15 +510,10 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const result = await fetchProjectData();
-      if (result.data.tasks.length === 0) {
-        throw new Error('云端无数据可拉取');
-      }
       saveLocalData(result.data);
       setData(result.data);
       setHasImported(result.data.tasks.length > 0);
       setLastSyncTime(result.lastSyncTime);
-      setIsLocalMode(true);
-      saveLocalMode(true);
     } catch (e: any) {
       setError(e.message);
     } finally {
