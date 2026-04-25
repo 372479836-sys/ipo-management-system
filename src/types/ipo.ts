@@ -26,7 +26,7 @@ export interface GanttCell {
   taskId: string;
   date: string;
   label?: string;
-  type?: 'milestone' | 'event' | 'progress' | 'start' | 'ddl' | 'keynode';
+  type?: 'milestone' | 'event' | 'progress' | 'start' | 'end' | 'ddl' | 'keynode';
 }
 
 export interface IpoProjectData {

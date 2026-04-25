@@ -41,6 +41,7 @@ const WS_DOT_COLORS = [
 
 const TYPE_STYLE: Record<string, string> = {
   start: 'bg-green-100 text-green-800 border-green-200',
+  end: 'bg-red-100 text-red-800 border-red-200',
   ddl: 'bg-red-100 text-red-800 border-red-200',
   keynode: 'bg-amber-100 text-amber-800 border-amber-200',
   milestone: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -50,6 +51,7 @@ const TYPE_STYLE: Record<string, string> = {
 
 const TYPE_LABEL: Record<string, string> = {
   start: '开始',
+  end: '结束',
   ddl: 'DDL',
   keynode: '关键',
   milestone: '里程碑',

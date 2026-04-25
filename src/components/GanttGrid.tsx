@@ -63,6 +63,7 @@ const WS_BG_COLORS = [
 
 const MARKER_STYLES: Record<string, string> = {
   start: 'bg-green-500',
+  end: 'bg-red-500',
   ddl: 'bg-red-500',
   keynode: 'bg-amber-500',
   milestone: 'bg-amber-500',
@@ -193,10 +194,10 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     tasks.forEach(t => {
       const taskCells = ganttCells.filter(c => c.taskId === t.id);
       const startCell = taskCells.find(c => c.type === 'start');
-      const ddlCell = taskCells.find(c => c.type === 'ddl');
-      if (startCell && ddlCell) {
+      const endCell = taskCells.find(c => c.type === 'end' || c.type === 'ddl');
+      if (startCell && endCell) {
         const si = dateIndexMap[startCell.date];
-        const ei = dateIndexMap[ddlCell.date];
+        const ei = dateIndexMap[endCell.date];
         if (si !== undefined && ei !== undefined && si < ei) {
           ranges[t.id] = { startIdx: si, endIdx: ei };
         }
@@ -441,7 +442,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                             >
                               {cell && (
                                 <div
-                                  draggable={!!(onMoveCell && (cellType === 'start' || cellType === 'ddl' || cellType === 'keynode'))}
+                                  draggable={!!(onMoveCell && (cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode'))}
                                   onDragStart={(e) => {
                                     e.dataTransfer.setData('text/cell-id', cell.id);
                                     e.dataTransfer.effectAllowed = 'move';
@@ -452,7 +453,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                   style={{ zIndex: 2 }}
                                   title={`${cell.label} (${cell.date})${cellType !== 'event' ? ' [' + cellType + ']' : ''}\n点击删除`}
                                   onClick={() => {
-                                    if (onRemoveCell && (cellType === 'start' || cellType === 'ddl' || cellType === 'keynode')) {
+                                    if (onRemoveCell && (cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode')) {
                                       onRemoveCell(cell.id);
                                     }
                                   }}
