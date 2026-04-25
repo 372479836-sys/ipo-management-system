@@ -13,7 +13,9 @@ function loadLocalData(): IpoProjectData | null {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as IpoProjectData;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function saveLocalData(data: IpoProjectData) {
@@ -37,9 +39,12 @@ interface IpoDataContextType {
   error: string | null;
   hasImported: boolean;
   isLocalMode: boolean;
+  lastSyncTime: string | null;
   setLocalMode: (v: boolean) => void;
   syncToCloud: () => Promise<void>;
   setImportedData: (data: IpoProjectData) => Promise<void>;
+  importWorkstreamsAndTasks: (data: Pick<IpoProjectData, 'workstreams' | 'tasks'>) => Promise<void>;
+  importGanttOnly: (data: Pick<IpoProjectData, 'ganttCells'>) => Promise<void>;
   resetToSeed: () => Promise<void>;
   refresh: () => Promise<void>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
@@ -53,7 +58,6 @@ const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [] }
 
 const IpoDataContext = createContext<IpoDataContextType | undefined>(undefined);
 
-/** 动态获取第一个 project 的 ID；如果不存在则创建 */
 async function getOrCreateProjectId(): Promise<string> {
   const { data, error } = await supabase
     .from('projects')
@@ -62,7 +66,6 @@ async function getOrCreateProjectId(): Promise<string> {
     .limit(1);
   if (error) throw new Error(`projects query: ${error.message}`);
   if (data && data.length > 0) return data[0].id;
-  // 不存在则创建
   const { data: created, error: createErr } = await supabase
     .from('projects')
     .insert({ name: 'Project Yangtze 进度跟踪' })
@@ -72,7 +75,12 @@ async function getOrCreateProjectId(): Promise<string> {
   return created.id;
 }
 
-async function fetchProjectData(): Promise<IpoProjectData> {
+interface FetchResult {
+  data: IpoProjectData;
+  lastSyncTime: string | null;
+}
+
+async function fetchProjectData(): Promise<FetchResult> {
   const projectId = await getOrCreateProjectId();
 
   const [wsRes, taskRes, gcRes] = await Promise.all([
@@ -84,6 +92,12 @@ async function fetchProjectData(): Promise<IpoProjectData> {
   if (wsRes.error) throw new Error(`workstreams: ${wsRes.error.message}`);
   if (taskRes.error) throw new Error(`tasks: ${taskRes.error.message}`);
   if (gcRes.error) throw new Error(`gantt_cells: ${gcRes.error.message}`);
+
+  const allTimes = [
+    ...(taskRes.data || []).map((r: any) => r.updated_at),
+    ...(wsRes.data || []).map((r: any) => r.created_at),
+  ].filter(Boolean);
+  const lastSyncTime = allTimes.length > 0 ? allTimes.sort().reverse()[0] : null;
 
   const workstreams: Workstream[] = (wsRes.data || []).map((r: any) => ({
     id: r.id,
@@ -106,7 +120,7 @@ async function fetchProjectData(): Promise<IpoProjectData> {
     status: r.status || 'pending',
   }));
 
-  const taskIds = new Set(tasks.map(t => t.id));
+  const taskIds = new Set(tasks.map((t) => t.id));
   const ganttCells: GanttCell[] = (gcRes.data || [])
     .filter((r: any) => taskIds.has(r.task_id))
     .map((r: any) => ({
@@ -117,7 +131,118 @@ async function fetchProjectData(): Promise<IpoProjectData> {
       type: r.cell_type || 'event',
     }));
 
-  return { workstreams, tasks, ganttCells };
+  return { data: { workstreams, tasks, ganttCells }, lastSyncTime };
+}
+
+async function deleteProjectGanttCells(projectId: string) {
+  const { data: taskRows, error: taskError } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('project_id', projectId);
+
+  if (taskError) {
+    throw new Error(`tasks query for gantt delete: ${taskError.message}`);
+  }
+
+  const taskIds = (taskRows || []).map((row: any) => row.id).filter(Boolean);
+  if (taskIds.length === 0) return;
+
+  const BATCH = 100;
+  for (let i = 0; i < taskIds.length; i += BATCH) {
+    const batch = taskIds.slice(i, i + BATCH);
+    const { error } = await supabase.from('gantt_cells').delete().in('task_id', batch);
+    if (error) {
+      throw new Error(`gantt_cells delete batch ${i}: ${error.message}`);
+    }
+  }
+}
+
+async function clearProjectData(projectId: string) {
+  await deleteProjectGanttCells(projectId);
+  await supabase.from('tasks').delete().eq('project_id', projectId);
+  await supabase.from('workstreams').delete().eq('project_id', projectId);
+}
+
+function buildUuidMaps(sourceData: IpoProjectData) {
+  const wsIdMap = new Map<string, string>();
+  const taskIdMap = new Map<string, string>();
+
+  const wsRows = sourceData.workstreams.map((ws) => {
+    const uuid = crypto.randomUUID();
+    wsIdMap.set(ws.id, uuid);
+    return { sourceId: ws.id, uuid };
+  });
+
+  const taskRows = sourceData.tasks.map((task) => {
+    const uuid = crypto.randomUUID();
+    taskIdMap.set(task.id, uuid);
+    return { sourceId: task.id, uuid };
+  });
+
+  return { wsIdMap, taskIdMap, wsRows, taskRows };
+}
+
+async function persistFullDataset(projectId: string, sourceData: IpoProjectData) {
+  const { wsIdMap, taskIdMap } = buildUuidMaps(sourceData);
+
+  const wsRows = sourceData.workstreams.map((ws) => ({
+    id: wsIdMap.get(ws.id)!,
+    project_id: projectId,
+    name: ws.name,
+    sort_order: ws.sortOrder,
+  }));
+
+  if (wsRows.length > 0) {
+    const { error } = await supabase.from('workstreams').insert(wsRows);
+    if (error) throw new Error(`workstream insert: ${error.message}`);
+  }
+
+  const taskRows = sourceData.tasks.map((t) => ({
+    id: taskIdMap.get(t.id)!,
+    project_id: projectId,
+    workstream_id: wsIdMap.get(t.workstreamId) || null,
+    title: t.title,
+    sponsor: t.sponsor || null,
+    lawyer: t.lawyer || null,
+    other_party: t.otherParty || null,
+    current_progress: t.currentProgress || null,
+    current_blocker: t.currentBlocker || null,
+    next_step: t.nextStep || null,
+    remark: t.remark || null,
+    status: t.status,
+  }));
+
+  if (taskRows.length > 0) {
+    const { error } = await supabase.from('tasks').insert(taskRows);
+    if (error) throw new Error(`task insert: ${error.message}`);
+  }
+
+  const gcRows = sourceData.ganttCells
+    .map((gc) => {
+      const mappedTaskId = taskIdMap.get(gc.taskId);
+      if (!mappedTaskId) return null;
+      return {
+        id: crypto.randomUUID(),
+        task_id: mappedTaskId,
+        cell_date: gc.date,
+        label: gc.label || null,
+        cell_type: gc.type || 'event',
+      };
+    })
+    .filter(Boolean) as Array<{
+      id: string;
+      task_id: string;
+      cell_date: string;
+      label: string | null;
+      cell_type: string;
+    }>;
+
+  const BATCH = 500;
+  for (let i = 0; i < gcRows.length; i += BATCH) {
+    const batch = gcRows.slice(i, i + BATCH);
+    const { error } = await supabase.from('gantt_cells').insert(batch);
+    if (error) throw new Error(`gantt_cell insert batch ${i}: ${error.message}`);
+  }
 }
 
 export function IpoDataProvider({ children }: { children: ReactNode }) {
@@ -126,8 +251,8 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [hasImported, setHasImported] = useState(false);
   const [isLocalMode, setIsLocalMode] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
-  // 初始化时读取 localStorage 的模式
   useEffect(() => {
     setIsLocalMode(loadLocalMode());
   }, []);
@@ -136,7 +261,6 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     setIsLocalMode(v);
     saveLocalMode(v);
     if (v) {
-      // 切到本地模式：把当前数据存入 localStorage
       saveLocalData(data);
     }
   }, [data]);
@@ -150,11 +274,15 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
         if (local) {
           setData(local);
           setHasImported(local.tasks.length > 0);
+        } else {
+          setData(emptyData);
+          setHasImported(false);
         }
       } else {
-        const d = await fetchProjectData();
-        setData(d);
-        setHasImported(d.tasks.length > 0);
+        const result = await fetchProjectData();
+        setData(result.data);
+        setHasImported(result.data.tasks.length > 0);
+        setLastSyncTime(result.lastSyncTime);
       }
     } catch (e: any) {
       setError(e.message);
@@ -171,77 +299,72 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
+      if (isLocalMode) {
+        setData(newData);
+        saveLocalData(newData);
+        setHasImported(newData.tasks.length > 0);
+        return;
+      }
+
       const projectId = await getOrCreateProjectId();
+      await clearProjectData(projectId);
+      await persistFullDataset(projectId, newData);
+      await refresh();
+    } catch (e: any) {
+      setError(e.message);
+      setLoading(false);
+    }
+  };
 
-      // 1. 清除旧数据（按外键顺序）
-      await supabase.from('gantt_cells').delete().gt('created_at', '1970-01-01');
-      await supabase.from('tasks').delete().eq('project_id', projectId);
-      await supabase.from('workstreams').delete().eq('project_id', projectId);
+  const importWorkstreamsAndTasks = async (partialData: Pick<IpoProjectData, 'workstreams' | 'tasks'>) => {
+    const mergedData: IpoProjectData = {
+      workstreams: partialData.workstreams,
+      tasks: partialData.tasks,
+      ganttCells: [],
+    };
+    await setImportedData(mergedData);
+  };
 
-      // 2. 生成 UUID 映射（Excel 解析出的 slug ID → 真实 UUID）
-      const wsIdMap = new Map<string, string>();
-      const taskIdMap = new Map<string, string>();
-
-      const wsRows = newData.workstreams.map((ws) => {
-        const uuid = crypto.randomUUID();
-        wsIdMap.set(ws.id, uuid);
-        return {
-          id: uuid,
-          project_id: projectId,
-          name: ws.name,
-          sort_order: ws.sortOrder,
-        };
-      });
-
-      // 3. 批量插入 workstreams
-      if (wsRows.length > 0) {
-        const { error: e } = await supabase.from('workstreams').insert(wsRows);
-        if (e) throw new Error(`workstream insert: ${e.message}`);
+  const importGanttOnly = async (partialData: Pick<IpoProjectData, 'ganttCells'>) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (isLocalMode) {
+        setData((prev) => {
+          const next = { ...prev, ganttCells: partialData.ganttCells };
+          saveLocalData(next);
+          return next;
+        });
+        return;
       }
 
-      // 4. 批量插入 tasks
-      const taskRows = newData.tasks.map((t) => {
-        const uuid = crypto.randomUUID();
-        taskIdMap.set(t.id, uuid);
-        return {
-          id: uuid,
-          project_id: projectId,
-          workstream_id: wsIdMap.get(t.workstreamId) || null,
-          title: t.title,
-          sponsor: t.sponsor || null,
-          lawyer: t.lawyer || null,
-          other_party: t.otherParty || null,
-          current_progress: t.currentProgress || null,
-          current_blocker: t.currentBlocker || null,
-          next_step: t.nextStep || null,
-          remark: t.remark || null,
-          assignee: t.assignee || null,
-          status: t.status,
-        };
-      });
+      const projectId = await getOrCreateProjectId();
+      const { data: taskRows, error: taskError } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('project_id', projectId);
+      if (taskError) throw new Error(`tasks query: ${taskError.message}`);
+      const taskIds = new Set((taskRows || []).map((row: any) => row.id));
 
-      if (taskRows.length > 0) {
-        const { error: e } = await supabase.from('tasks').insert(taskRows);
-        if (e) throw new Error(`task insert: ${e.message}`);
-      }
+      await deleteProjectGanttCells(projectId);
 
-      // 5. 批量插入 gantt_cells（分批，每批 500 条）
-      const gcRows = newData.ganttCells.map((gc) => ({
-        id: crypto.randomUUID(),
-        task_id: taskIdMap.get(gc.taskId) || null,
-        cell_date: gc.date,
-        label: gc.label || null,
-        cell_type: gc.type || 'event',
-      }));
+      const gcRows = partialData.ganttCells
+        .filter((gc) => taskIds.has(gc.taskId))
+        .map((gc) => ({
+          id: crypto.randomUUID(),
+          task_id: gc.taskId,
+          cell_date: gc.date,
+          label: gc.label || null,
+          cell_type: gc.type || 'event',
+        }));
 
       const BATCH = 500;
       for (let i = 0; i < gcRows.length; i += BATCH) {
         const batch = gcRows.slice(i, i + BATCH);
-        const { error: e } = await supabase.from('gantt_cells').insert(batch);
-        if (e) throw new Error(`gantt_cell insert batch ${i}: ${e.message}`);
+        const { error } = await supabase.from('gantt_cells').insert(batch);
+        if (error) throw new Error(`gantt import batch ${i}: ${error.message}`);
       }
 
-      // 6. 刷新本地状态
       await refresh();
     } catch (e: any) {
       setError(e.message);
@@ -253,10 +376,14 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
+      if (isLocalMode) {
+        setData(emptyData);
+        saveLocalData(emptyData);
+        setHasImported(false);
+        return;
+      }
       const projectId = await getOrCreateProjectId();
-      await supabase.from('gantt_cells').delete().gt('created_at', '1970-01-01');
-      await supabase.from('tasks').delete().eq('project_id', projectId);
-      await supabase.from('workstreams').delete().eq('project_id', projectId);
+      await clearProjectData(projectId);
       setData(emptyData);
       setHasImported(false);
     } catch (e: any) {
@@ -268,17 +395,17 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
 
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     if (isLocalMode) {
-      // 本地模式：只改内存 + localStorage
-      setData(prev => {
+      setData((prev) => {
         const next = {
           ...prev,
-          tasks: prev.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+          tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
         };
         saveLocalData(next);
         return next;
       });
       return;
     }
+
     const dbUpdates: Record<string, any> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.sponsor !== undefined) dbUpdates.sponsor = updates.sponsor;
@@ -295,17 +422,17 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     const { error: e } = await supabase.from('tasks').update(dbUpdates).eq('id', taskId);
     if (e) throw new Error(`task update: ${e.message}`);
 
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+      tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
     }));
   };
 
   const updateGanttCell = (cellId: string, updates: Partial<GanttCell>) => {
-    setData(prev => {
+    setData((prev) => {
       const next = {
         ...prev,
-        ganttCells: prev.ganttCells.map(c => c.id === cellId ? { ...c, ...updates } : c),
+        ganttCells: prev.ganttCells.map((c) => (c.id === cellId ? { ...c, ...updates } : c)),
       };
       if (isLocalMode) saveLocalData(next);
       return next;
@@ -313,7 +440,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addGanttCell = (cell: GanttCell) => {
-    setData(prev => {
+    setData((prev) => {
       const next = { ...prev, ganttCells: [...prev.ganttCells, cell] };
       if (isLocalMode) saveLocalData(next);
       return next;
@@ -321,29 +448,27 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
   };
 
   const removeGanttCell = (cellId: string) => {
-    setData(prev => {
-      const next = { ...prev, ganttCells: prev.ganttCells.filter(c => c.id !== cellId) };
+    setData((prev) => {
+      const next = { ...prev, ganttCells: prev.ganttCells.filter((c) => c.id !== cellId) };
       if (isLocalMode) saveLocalData(next);
       return next;
     });
   };
 
   const moveGanttCell = (cellId: string, newDate: string) => {
-    setData(prev => {
+    setData((prev) => {
       const next = {
         ...prev,
-        ganttCells: prev.ganttCells.map(c => c.id === cellId ? { ...c, date: newDate } : c),
+        ganttCells: prev.ganttCells.map((c) => (c.id === cellId ? { ...c, date: newDate } : c)),
       };
       if (isLocalMode) saveLocalData(next);
       return next;
     });
-    // 云端也更新
     if (!isLocalMode) {
       supabase.from('gantt_cells').update({ cell_date: newDate }).eq('id', cellId).then();
     }
   };
 
-  /** 把 localStorage 数据同步到 MemFire 云端 */
   const syncToCloud = async () => {
     const localData = loadLocalData();
     if (!localData || localData.tasks.length === 0) {
@@ -353,57 +478,8 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const projectId = await getOrCreateProjectId();
-
-      // 清除旧数据
-      await supabase.from('gantt_cells').delete().gt('created_at', '1970-01-01');
-      await supabase.from('tasks').delete().eq('project_id', projectId);
-      await supabase.from('workstreams').delete().eq('project_id', projectId);
-
-      // UUID 映射
-      const wsIdMap = new Map<string, string>();
-      const taskIdMap = new Map<string, string>();
-
-      const wsRows = localData.workstreams.map((ws) => {
-        const uuid = crypto.randomUUID();
-        wsIdMap.set(ws.id, uuid);
-        return { id: uuid, project_id: projectId, name: ws.name, sort_order: ws.sortOrder };
-      });
-      if (wsRows.length > 0) {
-        const { error: e } = await supabase.from('workstreams').insert(wsRows);
-        if (e) throw new Error(`workstream sync: ${e.message}`);
-      }
-
-      const taskRows = localData.tasks.map((t) => {
-        const uuid = crypto.randomUUID();
-        taskIdMap.set(t.id, uuid);
-        return {
-          id: uuid, project_id: projectId,
-          workstream_id: wsIdMap.get(t.workstreamId) || null,
-          title: t.title, sponsor: t.sponsor || null, lawyer: t.lawyer || null,
-          other_party: t.otherParty || null, current_progress: t.currentProgress || null,
-          current_blocker: t.currentBlocker || null, next_step: t.nextStep || null,
-          remark: t.remark || null,
-          status: t.status,
-        };
-      });
-      if (taskRows.length > 0) {
-        const { error: e } = await supabase.from('tasks').insert(taskRows);
-        if (e) throw new Error(`task sync: ${e.message}`);
-      }
-
-      const gcRows = localData.ganttCells.map((gc) => ({
-        id: crypto.randomUUID(),
-        task_id: taskIdMap.get(gc.taskId) || null,
-        cell_date: gc.date, label: gc.label || null, cell_type: gc.type || 'event',
-      }));
-      const BATCH = 500;
-      for (let i = 0; i < gcRows.length; i += BATCH) {
-        const batch = gcRows.slice(i, i + BATCH);
-        const { error: e } = await supabase.from('gantt_cells').insert(batch);
-        if (e) throw new Error(`gantt sync batch ${i}: ${e.message}`);
-      }
-
-      // 同步完成，切回云端模式
+      await clearProjectData(projectId);
+      await persistFullDataset(projectId, localData);
       setIsLocalMode(false);
       saveLocalMode(false);
       await refresh();
@@ -414,23 +490,28 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <IpoDataContext.Provider value={{
-      data,
-      loading,
-      error,
-      hasImported,
-      isLocalMode,
-      setLocalMode,
-      syncToCloud,
-      setImportedData,
-      resetToSeed,
-      refresh,
-      updateTask,
-      updateGanttCell,
-      addGanttCell,
-      removeGanttCell,
-      moveGanttCell,
-    }}>
+    <IpoDataContext.Provider
+      value={{
+        data,
+        loading,
+        error,
+        hasImported,
+        isLocalMode,
+        lastSyncTime,
+        setLocalMode,
+        syncToCloud,
+        setImportedData,
+        importWorkstreamsAndTasks,
+        importGanttOnly,
+        resetToSeed,
+        refresh,
+        updateTask,
+        updateGanttCell,
+        addGanttCell,
+        removeGanttCell,
+        moveGanttCell,
+      }}
+    >
       {children}
     </IpoDataContext.Provider>
   );

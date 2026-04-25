@@ -15,7 +15,7 @@ const NAV_ITEMS = [
 
 export default function NavBar() {
   const pathname = usePathname();
-  const { isLocalMode, setLocalMode, syncToCloud, loading } = useIpoData();
+  const { isLocalMode, setLocalMode, syncToCloud, loading, lastSyncTime } = useIpoData();
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -128,6 +128,11 @@ export default function NavBar() {
             )}
           </div>
           <span className="text-xs text-slate-400 hidden lg:inline">Project Yangtze</span>
+          {!isLocalMode && lastSyncTime && (
+            <span className="text-[10px] text-slate-400 hidden lg:inline" title={lastSyncTime}>
+              同步于 {new Date(lastSyncTime).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
         </div>
       </div>
       {/* Mobile dropdown nav */}

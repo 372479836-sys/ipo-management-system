@@ -24,7 +24,7 @@ const FILTER_LABELS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { data, hasImported } = useIpoData();
-  const { workstreams, tasks } = data;
+  const { workstreams, tasks, ganttCells } = data;
   const [activeFilter, setActiveFilter] = useState<FilterKey>(null);
 
   const stats = useMemo(() => ({
@@ -43,6 +43,36 @@ export default function DashboardPage() {
       blocked: tasks.filter(t => t.workstreamId === ws.id && t.status === 'blocked').length,
     }));
   }, [workstreams, tasks]);
+
+  // DDL预警：未来14天内的ddl/milestone/keynode
+  const ddlWarnings = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in14 = new Date(today);
+    in14.setDate(in14.getDate() + 14);
+
+    const importantTypes = ['ddl', 'milestone', 'keynode'];
+    return ganttCells
+      .filter(gc => {
+        if (!importantTypes.includes(gc.type || '')) return false;
+        const d = new Date(gc.date);
+        return d >= today && d <= in14;
+      })
+      .map(gc => {
+        const task = tasks.find(t => t.id === gc.taskId);
+        const ws = workstreams.find(w => w.id === task?.workstreamId);
+        const d = new Date(gc.date);
+        const diffDays = Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          ...gc,
+          taskTitle: task?.title || '',
+          taskStatus: task?.status || 'pending',
+          wsName: ws?.name || '',
+          diffDays,
+        };
+      })
+      .sort((a, b) => a.diffDays - b.diffDays);
+  }, [ganttCells, tasks, workstreams]);
 
   const filteredTasks = useMemo(() => {
     if (!activeFilter) return [];
@@ -147,6 +177,49 @@ export default function DashboardPage() {
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />卡点 {stats.total > 0 ? Math.round((stats.blocked / stats.total) * 100) : 0}%</span>
         </div>
       </div>
+
+      {/* DDL预警看板 */}
+      {ddlWarnings.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
+            <span className="text-red-500">⏰</span>
+            <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              未来14天 DDL / 里程碑（{ddlWarnings.length}项）
+            </h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {ddlWarnings.map((w, i) => {
+              const urgencyClass = w.diffDays <= 3
+                ? 'bg-red-50 border-l-4 border-l-red-400'
+                : w.diffDays <= 7
+                  ? 'bg-amber-50 border-l-4 border-l-amber-400'
+                  : 'bg-slate-50 border-l-4 border-l-slate-300';
+              const typeLabel = w.type === 'ddl' ? '截止' : w.type === 'keynode' ? '关键' : '里程碑';
+              const typeColor = w.type === 'ddl' ? 'text-red-600 bg-red-100' : w.type === 'keynode' ? 'text-amber-700 bg-amber-100' : 'text-blue-600 bg-blue-100';
+              return (
+                <div key={`${w.id}-${i}`} className={`px-4 py-3 flex items-center gap-3 ${urgencyClass}`}>
+                  <div className="flex-shrink-0 text-center w-14">
+                    <div className="text-[10px] text-slate-400">{new Date(w.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</div>
+                    <div className={`text-xs font-bold ${w.diffDays <= 3 ? 'text-red-600' : w.diffDays <= 7 ? 'text-amber-600' : 'text-slate-500'}`}>
+                      {w.diffDays === 0 ? '今天' : `${w.diffDays}天后`}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${typeColor}`}>{typeLabel}</span>
+                      <span className="text-xs font-medium text-slate-800 truncate">{w.label || w.taskTitle}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{w.wsName} · {w.taskTitle}</div>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLOR[w.taskStatus as TaskStatus] || ''}`}>
+                    {STATUS_LABEL[w.taskStatus as TaskStatus] || w.taskStatus}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 各条线统计 — 可点击跳转 */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

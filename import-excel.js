@@ -19,7 +19,7 @@ envContent.split('\n').forEach(line => {
 
 const SUPABASE_URL = envVars.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = envVars.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const PROJECT_ID = 'd10a5d5b-1c35-450a-9841-4861e3223e57';
+let PROJECT_ID = '';
 
 function uuid() { return crypto.randomUUID(); }
 
@@ -54,6 +54,19 @@ function supabaseRequest(method, path, body) {
     if (body) req.write(JSON.stringify(body));
     req.end();
   });
+}
+
+async function getOrCreateProjectId() {
+  const projects = await supabaseRequest('GET', 'projects?select=id,name,created_at&order=created_at.asc&limit=1');
+  if (projects && projects.length > 0) {
+    return projects[0].id;
+  }
+
+  const created = await supabaseRequest('POST', 'projects', [{ name: 'Project Yangtze 进度跟踪' }]);
+  if (!created || !created[0]?.id) {
+    throw new Error('Failed to get or create project id');
+  }
+  return created[0].id;
 }
 
 async function deleteAll(table) {
@@ -107,6 +120,9 @@ function inferStatus(progress, blocker) {
 }
 
 async function main() {
+  PROJECT_ID = await getOrCreateProjectId();
+  console.log(`Using project_id: ${PROJECT_ID}`);
+
   const excelPath = '/Users/jyf/.hermes/cache/documents/doc_70c65c79cea7_Yangtze - 事项进度-甘特视图.xlsx';
   const wb = XLSX.readFile(excelPath, { cellDates: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];

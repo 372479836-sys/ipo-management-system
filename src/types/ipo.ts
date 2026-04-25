@@ -48,3 +48,24 @@ export const STATUS_COLOR: Record<TaskStatus, string> = {
   completed: 'bg-green-100 text-green-700',
   blocked: 'bg-red-100 text-red-700',
 };
+
+// 变更日志
+export interface AuditLog {
+  id: string;
+  taskId: string;
+  action: string;       // 'update' | 'status_change' | 'create' | 'delete'
+  fieldName?: string;
+  oldValue?: string;
+  newValue?: string;
+  userName: string;
+  createdAt: string;     // ISO string
+}
+
+// 评论
+export interface Comment {
+  id: string;
+  taskId: string;
+  content: string;
+  userName: string;
+  createdAt: string;     // ISO string
+}

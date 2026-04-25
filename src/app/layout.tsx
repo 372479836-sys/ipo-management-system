@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { IpoDataProvider } from '@/context/IpoDataContext';
+import { AuditCommentProvider } from '@/context/AuditCommentContext';
 import NavBar from '@/components/NavBar';
 
 export const metadata: Metadata = {
@@ -17,13 +18,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen">
         <IpoDataProvider>
-          <NavBar />
-          <main className="max-w-7xl mx-auto px-6 py-8">
-            {children}
-          </main>
-          <footer className="text-center text-xs text-slate-400 py-6">
-            Project Yangtze · IPO 事项管理系统
-          </footer>
+          <AuditCommentProvider>
+            <NavBar />
+            <main className="max-w-7xl mx-auto px-6 py-8">
+              {children}
+            </main>
+            <footer className="text-center text-xs text-slate-400 py-6">
+              Project Yangtze · IPO 事项管理系统
+            </footer>
+          </AuditCommentProvider>
         </IpoDataProvider>
       </body>
     </html>
