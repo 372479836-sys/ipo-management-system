@@ -109,11 +109,13 @@ function getDayName(dateStr: string): string {
 
 /* 右键菜单 */
 function CellContextMenu({
-  x, y, onAdd, onClose,
+  x, y, onAdd, onRemove, onClose, existingCellId,
 }: {
   x: number; y: number;
   onAdd: (type: 'start' | 'ddl' | 'keynode') => void;
+  onRemove?: () => void;
   onClose: () => void;
+  existingCellId?: string;
 }) {
   return (
     <>
@@ -122,17 +124,32 @@ function CellContextMenu({
         className="fixed z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[120px]"
         style={{ left: x, top: y }}
       >
-        <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">标注节点</div>
-        {(['start', 'ddl', 'keynode'] as const).map(type => (
-          <button
-            key={type}
-            onClick={() => { onAdd(type); onClose(); }}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex items-center gap-2"
-          >
-            <span className={`w-2 h-2 rounded-full ${MARKER_STYLES[type]}`} />
-            {MARKER_LABELS[type]}
-          </button>
-        ))}
+        {existingCellId && onRemove ? (
+          <>
+            <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">操作</div>
+            <button
+              onClick={() => { onRemove(); onClose(); }}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              删除标记
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="px-3 py-1 text-[10px] text-slate-400 border-b border-slate-100">标注节点</div>
+            {(['start', 'ddl', 'keynode'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => { onAdd(type); onClose(); }}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex items-center gap-2"
+              >
+                <span className={`w-2 h-2 rounded-full ${MARKER_STYLES[type]}`} />
+                {MARKER_LABELS[type]}
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </>
   );
@@ -140,7 +157,7 @@ function CellContextMenu({
 
 export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell, onMoveCell }: GanttGridProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(new Set());
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string; cellId?: string } | null>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const isSyncing = useRef(false);
@@ -214,9 +231,9 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     return boundaries;
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, taskId: string, date: string) => {
-    e.preventDefault();
-    setCtxMenu({ x: e.clientX, y: e.clientY, taskId, date });
+  const handleCellClick = (e: React.MouseEvent, taskId: string, date: string, cellId?: string) => {
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, taskId, date, cellId });
   };
 
   const handleAddMarker = (type: 'start' | 'ddl' | 'keynode') => {
@@ -432,7 +449,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                 isWeekend(date) ? 'bg-slate-50/50' : ''
                               } ${date === today ? 'bg-brand-50/30' : ''}`}
                               style={{ width: COL_W, backgroundColor: inRange ? bgColor : undefined }}
-                              onContextMenu={(e) => handleContextMenu(e, task.id, date)}
+                              onClick={(e) => !cell && handleCellClick(e, task.id, date)}
                               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
                               onDrop={(e) => {
                                 e.preventDefault();
@@ -449,12 +466,12 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                   }}
                                   className={`absolute inset-0.5 rounded flex items-center justify-center text-white text-[8px] font-medium leading-tight px-0.5 ${
                                     MARKER_STYLES[cellType] || 'bg-brand-500'
-                                  } ${onRemoveCell ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                  } ${onRemoveCell ? 'cursor-pointer' : ''}`}
                                   style={{ zIndex: 2 }}
-                                  title={`${cell.label} (${cell.date})${cellType !== 'event' ? ' [' + cellType + ']' : ''}\n点击删除`}
-                                  onClick={() => {
-                                    if (onRemoveCell && (cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode')) {
-                                      onRemoveCell(cell.id);
+                                  title={`${cell.label} (${cell.date})${cellType !== 'event' ? ' [' + cellType + ']' : ''}\\n点击操作`}
+                                  onClick={(e) => {
+                                    if (cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode') {
+                                      handleCellClick(e, task.id, date, cell.id);
                                     }
                                   }}
                                 >
@@ -474,12 +491,14 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
         </div>
       </div>
 
-      {/* 右键菜单 */}
+      {/* 左键菜单 */}
       {ctxMenu && (
         <CellContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
           onAdd={handleAddMarker}
+          onRemove={ctxMenu.cellId && onRemoveCell ? () => onRemoveCell(ctxMenu.cellId!) : undefined}
+          existingCellId={ctxMenu.cellId}
           onClose={() => setCtxMenu(null)}
         />
       )}
