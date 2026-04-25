@@ -38,6 +38,22 @@ const WS_COLORS = [
   'bg-slate-500',
 ];
 
+const WS_BAR_GRADIENTS = [
+  'from-indigo-300/70 to-indigo-500/40',
+  'from-violet-300/70 to-violet-500/40',
+  'from-cyan-300/70 to-cyan-500/40',
+  'from-emerald-300/70 to-emerald-500/40',
+  'from-amber-300/70 to-amber-500/40',
+  'from-rose-300/70 to-rose-500/40',
+  'from-orange-300/70 to-orange-500/40',
+  'from-teal-300/70 to-teal-500/40',
+  'from-sky-300/70 to-sky-500/40',
+  'from-purple-300/70 to-purple-500/40',
+  'from-pink-300/70 to-pink-500/40',
+  'from-lime-300/70 to-lime-500/40',
+  'from-slate-300/70 to-slate-500/40',
+];
+
 const MARKER_STYLES: Record<string, string> = {
   start: 'bg-green-500',
   ddl: 'bg-red-500',
@@ -56,7 +72,6 @@ const MARKER_LABELS: Record<string, string> = {
 const COL_W = 36;
 const ROW_H = 28;
 const LEFT_W = 192;
-const HEADER_H = 64; // 周次22 + 日期22 + 周几20
 
 function getDatesInRange(start: string, end: string): string[] {
   const dates: string[] = [];
@@ -187,7 +202,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
 
   const weekBoundaries = useMemo(() => {
     const boundaries = new Set<string>();
-    WEEKS.forEach(w => boundaries.add(w.start));
+    WEEKS.forEach(w => boundaries.add(w.end));
     return boundaries;
   }, []);
 
@@ -375,6 +390,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                 {/* 任务行 */}
                 {(wsTaskMap[ws.id] || []).map((task) => {
                   const bar = taskBarRanges[task.id];
+                  const barGradient = WS_BAR_GRADIENTS[wsIdx % WS_BAR_GRADIENTS.length];
                   return (
                     <div key={task.id} className="flex" style={{ height: ROW_H }}>
                       <div className="flex-shrink-0 bg-white border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
@@ -385,12 +401,12 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                       <div className="flex relative">
                         {bar && (
                           <div
-                            className="absolute bg-green-200/60 rounded-sm"
+                            className={`absolute bg-gradient-to-r ${barGradient} rounded-full`}
                             style={{
                               left: bar.startIdx * COL_W + COL_W / 2,
                               width: (bar.endIdx - bar.startIdx) * COL_W,
-                              top: ROW_H / 2 - 3,
-                              height: 6,
+                              top: ROW_H / 2 - 4,
+                              height: 8,
                               zIndex: 1,
                             }}
                           />

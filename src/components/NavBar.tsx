@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useIpoData } from '@/context/IpoDataContext';
 import GlobalSearch from './GlobalSearch';
 
 const NAV_ITEMS = [
@@ -15,24 +14,7 @@ const NAV_ITEMS = [
 
 export default function NavBar() {
   const pathname = usePathname();
-  const { isLocalMode, setLocalMode, syncToCloud, loading, lastSyncTime } = useIpoData();
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncMsg('');
-    try {
-      await syncToCloud();
-      setSyncMsg('✓ 已同步');
-      setTimeout(() => setSyncMsg(''), 3000);
-    } catch (e: any) {
-      setSyncMsg(`✗ ${e.message}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   return (
     <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200/60 sticky top-0 z-50">
@@ -45,7 +27,6 @@ export default function NavBar() {
             </svg>
             <span className="hidden sm:inline">IPO 跟踪</span>
           </Link>
-          {/* Desktop nav */}
           <nav className="hidden md:flex gap-1">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
@@ -67,7 +48,6 @@ export default function NavBar() {
               );
             })}
           </nav>
-          {/* Mobile hamburger */}
           <button
             className="md:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
             onClick={() => setMobileOpen(!mobileOpen)}
@@ -80,62 +60,14 @@ export default function NavBar() {
             </svg>
           </button>
         </div>
-        {/* Right: search + mode */}
+
+        {/* Right: search + project */}
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="hidden sm:block"><GlobalSearch /></div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setLocalMode(!isLocalMode)}
-              className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                isLocalMode
-                  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-              }`}
-            >
-              {isLocalMode ? (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  <span className="hidden sm:inline">本地模式</span>
-                  <span className="sm:hidden">本地</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                  </svg>
-                  <span className="hidden sm:inline">云端模式</span>
-                  <span className="sm:hidden">云端</span>
-                </>
-              )}
-            </button>
-            {isLocalMode && (
-              <button
-                onClick={handleSync}
-                disabled={syncing || loading}
-                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
-              >
-                <svg className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="hidden sm:inline">{syncing ? '同步中...' : '同步到云端'}</span>
-                <span className="sm:hidden">{syncing ? '...' : '同步'}</span>
-              </button>
-            )}
-            {syncMsg && (
-              <span className={`text-xs ${syncMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
-            )}
-          </div>
           <span className="text-xs text-slate-400 hidden lg:inline">Project Yangtze</span>
-          {!isLocalMode && lastSyncTime && (
-            <span className="text-[10px] text-slate-400 hidden lg:inline" title={lastSyncTime}>
-              同步于 {new Date(lastSyncTime).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
         </div>
       </div>
-      {/* Mobile dropdown nav */}
+
       {mobileOpen && (
         <div className="md:hidden border-t border-slate-200/60 bg-white/95 backdrop-blur-lg px-4 py-2 space-y-1">
           {NAV_ITEMS.map((item) => {

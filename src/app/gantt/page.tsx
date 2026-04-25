@@ -10,9 +10,11 @@ import ExcelImport from '@/components/ExcelImport';
 type ViewTab = 'daily' | 'weekly' | 'monthly';
 
 export default function GanttPage() {
-  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell } = useIpoData();
+  const { data, loading, error, hasImported, addGanttCell, removeGanttCell, moveGanttCell, isLocalMode, setLocalMode, syncToCloud, pullFromCloud } = useIpoData();
   const { workstreams, tasks, ganttCells } = data;
   const [activeTab, setActiveTab] = useState<ViewTab>('daily');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const handleAddMarker = (taskId: string, date: string, type: 'start' | 'ddl' | 'keynode', label: string) => {
     const id = crypto.randomUUID();
@@ -23,13 +25,82 @@ export default function GanttPage() {
     removeGanttCell(cellId);
   };
 
+  const handleSyncToCloud = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      await syncToCloud();
+      setSyncMsg('✅ 已同步到云端');
+    } catch (e: any) {
+      setSyncMsg(`❌ ${e.message}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 3000);
+    }
+  };
+
+  const handlePullFromCloud = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      await pullFromCloud();
+      setSyncMsg('✅ 已从云端拉取到本地');
+    } catch (e: any) {
+      setSyncMsg(`❌ ${e.message}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 3000);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-800">甘特图</h1>
-        {hasImported && (
-          <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
-        )}
+        <div className="flex items-center gap-2">
+          {/* 云端/本地模式切换 */}
+          <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1">
+            <button
+              onClick={() => setLocalMode(false)}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
+                !isLocalMode ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              ☁️ 云端
+            </button>
+            <button
+              onClick={() => setLocalMode(true)}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
+                isLocalMode ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              💾 本地
+            </button>
+          </div>
+          {/* 同步按钮 */}
+          <button
+            onClick={handleSyncToCloud}
+            disabled={syncing}
+            className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
+            title="将本地数据推送到云端"
+          >
+            {syncing ? '⏳' : '⬆️'} 推到云端
+          </button>
+          <button
+            onClick={handlePullFromCloud}
+            disabled={syncing}
+            className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
+            title="从云端拉取数据到本地"
+          >
+            {syncing ? '⏳' : '⬇️'} 拉到本地
+          </button>
+          {syncMsg && (
+            <span className={`text-[10px] ${syncMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
+          )}
+          {hasImported && (
+            <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
+          )}
+        </div>
       </div>
 
       <ExcelImport />

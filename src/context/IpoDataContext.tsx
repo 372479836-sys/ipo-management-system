@@ -42,6 +42,7 @@ interface IpoDataContextType {
   lastSyncTime: string | null;
   setLocalMode: (v: boolean) => void;
   syncToCloud: () => Promise<void>;
+  pullFromCloud: () => Promise<void>;
   setImportedData: (data: IpoProjectData) => Promise<void>;
   importWorkstreamsAndTasks: (data: Pick<IpoProjectData, 'workstreams' | 'tasks'>) => Promise<void>;
   importGanttOnly: (data: Pick<IpoProjectData, 'ganttCells'>) => Promise<void>;
@@ -489,6 +490,27 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const pullFromCloud = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchProjectData();
+      if (result.data.tasks.length === 0) {
+        throw new Error('云端无数据可拉取');
+      }
+      saveLocalData(result.data);
+      setData(result.data);
+      setHasImported(result.data.tasks.length > 0);
+      setLastSyncTime(result.lastSyncTime);
+      setIsLocalMode(true);
+      saveLocalMode(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <IpoDataContext.Provider
       value={{
@@ -500,6 +522,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
         lastSyncTime,
         setLocalMode,
         syncToCloud,
+        pullFromCloud,
         setImportedData,
         importWorkstreamsAndTasks,
         importGanttOnly,
