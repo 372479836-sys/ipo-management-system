@@ -61,8 +61,8 @@ const WS_BG_COLORS = [
 
 const MARKER_STYLES: Record<string, string> = {
   start: 'bg-green-500',
-  end: 'bg-red-500',
-  ddl: 'bg-red-500',
+  end: 'bg-red-300',
+  ddl: 'bg-red-300',
   keynode: 'bg-amber-500',
   milestone: 'bg-amber-500',
   event: 'bg-brand-500',
@@ -424,17 +424,17 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                 </div>
 
                 {/* 任务行 */}
-                {(wsTaskMap[ws.id] || []).filter(task => task.status !== 'completed').map((task) => {
+                {(wsTaskMap[ws.id] || []).map((task) => {
                   const bar = taskBarRanges[task.id];
-                  const isCompleted = task.status === 'completed';
+                  const isCompleted = task.status === 'completed' || (task.status as string) === '已完成';
                   const barColor = isCompleted ? 'rgba(148,163,184,0.12)' : WS_BAR_COLORS[wsIdx % WS_BAR_COLORS.length];
                   const nodeColor = WS_NODE_COLORS[wsIdx % WS_NODE_COLORS.length];
                   const bgColor = WS_BG_COLORS[wsIdx % WS_BG_COLORS.length];
                   return (
-                    <div key={task.id} className={`flex ${isCompleted ? 'opacity-60' : ''}`} style={{ height: ROW_H }}>
-                      <div className="flex-shrink-0 bg-white border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}>
+                    <div key={task.id} className={`flex ${isCompleted ? 'opacity-50' : ''}`} style={{ height: ROW_H }}>
+                      <div className="flex-shrink-0 border-b border-r border-slate-100" style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10, background: isCompleted ? '#f8fafc' : 'white' }}>
                         <div className="h-full flex items-center px-3">
-                          <span className={`text-[11px] truncate ${task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-700'}`} title={task.title}>{task.title}</span>
+                          <span className={`text-[11px] truncate ${isCompleted ? 'line-through text-slate-400' : 'text-slate-700'}`} title={task.title}>{task.title}</span>
                         </div>
                       </div>
                       <div className="flex relative">
@@ -446,6 +446,13 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                           const isNode = cellType === 'start' || cellType === 'end' || cellType === 'ddl' || cellType === 'keynode' || cellType === 'milestone';
                           const isStartOrEnd = cellType === 'start' || cellType === 'end' || cellType === 'ddl';
                           const isKeyNode = cellType === 'keynode' || cellType === 'milestone';
+                          // 已完成任务的格子用灰色覆盖
+                          let cellBg: string | undefined;
+                          if (isCompleted) {
+                            cellBg = cell && isStartOrEnd ? 'rgba(148,163,184,0.4)' : cell && isKeyNode ? 'rgba(148,163,184,0.3)' : inRange ? 'rgba(148,163,184,0.08)' : bgColor;
+                          } else {
+                            cellBg = cell && isStartOrEnd ? nodeColor : cell && isKeyNode ? 'rgba(245,158,11,0.6)' : inRange ? barColor : bgColor;
+                          }
                           return (
                             <div
                               key={`${task.id}_${date}`}
@@ -454,7 +461,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                               } ${date === today ? 'bg-brand-50/30' : ''}`}
                               style={{
                                 width: COL_W,
-                                backgroundColor: (cell && isStartOrEnd) ? nodeColor : (cell && isKeyNode) ? 'rgba(245,158,11,0.6)' : inRange ? barColor : undefined,
+                                backgroundColor: cellBg,
                               }}
                               onClick={(e) => cell ? handleCellClick(e, task.id, date, cell.id) : handleCellClick(e, task.id, date)}
                               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}

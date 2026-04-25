@@ -101,7 +101,7 @@ export default function GanttPage() {
             className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
             title="将本地数据推送到云端"
           >
-            {syncing ? '⏳' : '⬆️'} 推到云端
+            {syncing ? '⏳' : '⬆️'} 本地数据同步到云端
           </button>
           <button
             onClick={handlePullFromCloud}
@@ -109,7 +109,7 @@ export default function GanttPage() {
             className="px-2 py-1 text-[10px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-brand-300 hover:text-brand-600 transition-all disabled:opacity-50"
             title="从云端拉取数据到本地"
           >
-            {syncing ? '⏳' : '⬇️'} 拉到本地
+            {syncing ? '⏳' : '⬇️'} 用云端数据覆盖本地
           </button>
           {syncMsg && (
             <span className={`text-[10px] ${syncMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{syncMsg}</span>
