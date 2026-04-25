@@ -1,0 +1,6 @@
+-- 修复 tasks 表缺失字段
+-- 在 MemFire 控制台 SQL 编辑器执行
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remark TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee TEXT;

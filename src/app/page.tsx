@@ -8,7 +8,7 @@ export default function HomePage() {
     <div className="space-y-8">
       {/* Hero */}
       <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl p-8 text-white shadow-lg">
-        <h1 className="text-xl font-bold mb-1.5">IPO 事项管理系统</h1>
+        <h1 className="text-xl font-bold mb-1.5 text-white">IPO 事项管理系统</h1>
         <p className="text-brand-100 text-sm mb-4">Project Yangtze — 港股 IPO 项目进度跟踪与协作平台</p>
         <div className="flex gap-3">
           <Link href="/dashboard" className="inline-flex items-center px-4 py-2 text-xs bg-white text-brand-700 font-semibold rounded-xl hover:bg-brand-50 transition-colors shadow-sm">

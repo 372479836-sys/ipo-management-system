@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import ExcelImport from '@/components/ExcelImport';
 import ExportButtons from '@/components/ExportButtons';
 import DangerZoneClearData from '@/components/admin/DangerZoneClearData';
 import { useIpoData } from '@/context/IpoDataContext';
@@ -29,10 +28,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Excel 导入 */}
+      {/* 数据导入已禁用 */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700 mb-4">📥 数据导入</h2>
-        <ExcelImport />
+        <p className="text-sm text-slate-500">Excel 上传功能已禁用，数据由管理员直接导入。</p>
       </div>
 
       {/* 导出 */}
