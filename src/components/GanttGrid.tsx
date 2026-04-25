@@ -78,12 +78,6 @@ const ROW_H = 28;
 const WEEK_ROW_H = 'auto';
 const LEFT_W = 192;
 
-const MONTHS: { label: string; start: string; end: string }[] = [
-  { label: '2026年3月', start: '2026-03-30', end: '2026-03-31' },
-  { label: '2026年4月', start: '2026-04-01', end: '2026-04-30' },
-  { label: '2026年5月', start: '2026-05-01', end: '2026-05-31' },
-];
-
 function getDatesInRange(start: string, end: string): string[] {
   const dates: string[] = [];
   const d = new Date(start);
@@ -213,7 +207,7 @@ function CellContextMenu({
 
 export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell, onMoveCell }: GanttGridProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(new Set());
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string; cellId?: string } | null>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -433,13 +427,12 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
     ).sort((a, b) => a.date.localeCompare(b.date));
   }, [ganttCells]);
 
-  // 周/月视图的时间段
+  // 周次视图的时间段
   const viewPeriods = useMemo(() => {
     if (viewMode === 'week') {
       if (showAll) return WEEKS;
       return Array.from(selectedWeeks).sort((a, b) => a - b).map(i => WEEKS[i]);
     }
-    if (viewMode === 'month') return MONTHS;
     return [];
   }, [viewMode, showAll, selectedWeeks]);
 
@@ -448,7 +441,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
       {/* 视图切换 + 周次筛选器 */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
-          {(['day', 'week', 'month'] as const).map(mode => (
+          {(['day', 'week'] as const).map(mode => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
@@ -458,7 +451,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {mode === 'day' ? '日' : mode === 'week' ? '周' : '月'}
+              {mode === 'day' ? '日视图' : '周次视图'}
             </button>
           ))}
         </div>
