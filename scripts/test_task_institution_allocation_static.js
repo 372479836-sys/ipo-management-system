@@ -20,6 +20,15 @@ assert(section.includes('onSave={(value) => handleUpdate(task.id, { lawyer: valu
 assert(section.includes('onSave={(value) => handleUpdate(task.id, { otherParty: value })}'), 'otherParty allocation should be editable');
 assert(section.includes('机构访问按分工过滤'), 'UI should communicate that allocation controls portal visibility');
 
+assert(section.includes("sponsor: ['保荐人H', '保荐人C', '保荐人D']"), '保荐人分组只能显示 H/C/D');
+assert(section.includes("lawyer: ['DP', 'FD', 'HSF', 'JT']"), '律师/顾问分组只能显示 DP/FD/HSF/JT');
+assert(section.includes("otherParty: ['KP', 'CIC']"), '其他机构分组只能显示 KP/CIC');
+assert(section.includes('options={institutionOptions.sponsor}'), 'sponsor multi-select should only receive sponsor options');
+assert(section.includes('options={institutionOptions.lawyer}'), 'lawyer multi-select should only receive lawyer options');
+assert(section.includes('options={institutionOptions.otherParty}'), 'otherParty multi-select should only receive other-party options');
+assert(section.includes("{editing ? '收起' : '调整'}"), '分工 UI should be collapsed by default and expanded via 调整 to avoid accidental clicks');
+assert(section.includes('selectedText'), 'collapsed allocation UI should summarize selected institutions');
+
 assert(section.includes('const selected = new Set(parseInstitutionList(value))'), '分工默认勾选应来自既有 sponsor/lawyer/otherParty 字段');
 assert(section.includes('const active = selected.has(institution)'), '分工按钮 active 状态应反映既有字段');
 assert(section.includes("value={task.sponsor || ''}"), 'sponsor 多选应传入既有 sponsor 作为默认值');
