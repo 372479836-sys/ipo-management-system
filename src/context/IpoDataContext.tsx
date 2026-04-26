@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { IpoProjectData, Workstream, Task, GanttCell, ProjectContact } from '@/types/ipo';
+import { IpoProjectData, Workstream, Task, GanttCell, ProjectContact, TaskFeedback, FeedbackStatus } from '@/types/ipo';
 import { supabase } from '@/lib/supabase';
 
 const LOCAL_STORAGE_KEY = 'ipo-local-data';
@@ -49,6 +49,8 @@ interface IpoDataContextType {
   importGanttOnly: (data: Pick<IpoProjectData, 'ganttCells'>) => Promise<void>;
   resetToSeed: () => Promise<void>;
   refresh: () => Promise<void>;
+  loadFeedbacks: () => Promise<void>;
+  updateFeedback: (feedbackId: string, updates: { status: FeedbackStatus; adminReply?: string; applyToOfficial?: boolean }) => Promise<void>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
   updateGanttCell: (cellId: string, updates: Partial<GanttCell>) => void;
   addGanttCell: (cell: GanttCell) => void;
@@ -61,7 +63,7 @@ interface IpoDataContextType {
   removeTask: (taskId: string) => Promise<void>;
 }
 
-const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [], contacts: [] };
+const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [], contacts: [], feedbacks: [] };
 
 const IpoDataContext = createContext<IpoDataContextType | undefined>(undefined);
 
@@ -96,6 +98,8 @@ async function fetchProjectData(): Promise<FetchResult> {
     supabase.from('project_contacts').select('*').eq('project_id', projectId).order('institution', { ascending: true }).order('name', { ascending: true }),
   ]);
 
+  const feedbackRes = await supabase.from('task_feedbacks').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+
   if (wsRes.error) throw new Error(`workstreams: ${wsRes.error.message}`);
   if (taskRes.error) throw new Error(`tasks: ${taskRes.error.message}`);
   const contactsTableMissing = Boolean(
@@ -103,6 +107,8 @@ async function fetchProjectData(): Promise<FetchResult> {
     (contactRes.error.message.includes('project_contacts') || contactRes.error.message.includes('does not exist'))
   );
   if (contactRes.error && !contactsTableMissing) throw new Error(`project_contacts: ${contactRes.error.message}`);
+  const feedbackTableMissing = Boolean(feedbackRes.error && (feedbackRes.error.message.includes('task_feedbacks') || feedbackRes.error.message.includes('does not exist')));
+  if (feedbackRes.error && !feedbackTableMissing) throw new Error(`task_feedbacks: ${feedbackRes.error.message}`);
 
   // gantt_cells 可能超过1000条，需要分页获取全部
   const allGanttCells: any[] = [];
@@ -169,7 +175,29 @@ async function fetchProjectData(): Promise<FetchResult> {
     isKeyContact: Boolean(r.is_key_contact),
   }));
 
-  return { data: { workstreams, tasks, ganttCells, contacts }, lastSyncTime };
+
+  const feedbacks: TaskFeedback[] = (feedbackTableMissing ? [] : (feedbackRes.data || [])).map((r: any) => ({
+    id: r.id,
+    projectId: r.project_id,
+    taskId: r.task_id || undefined,
+    ganttCellId: r.gantt_cell_id || undefined,
+    institution: r.institution || '',
+    contactName: r.contact_name || undefined,
+    contactEmail: r.contact_email || undefined,
+    targetType: r.target_type || 'task_field',
+    targetField: r.target_field || 'current_progress',
+    originalValue: r.original_value || '',
+    suggestedValue: r.suggested_value || '',
+    comment: r.comment || '',
+    status: r.status || 'open',
+    adminReply: r.admin_reply || undefined,
+    resolvedBy: r.resolved_by || undefined,
+    resolvedAt: r.resolved_at || undefined,
+    createdAt: r.created_at || '',
+    updatedAt: r.updated_at || '',
+  }));
+
+  return { data: { workstreams, tasks, ganttCells, contacts, feedbacks }, lastSyncTime };
 }
 
 async function deleteProjectGanttCells(projectId: string) {
@@ -376,6 +404,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
       tasks: partialData.tasks,
       ganttCells: [],
       contacts: data.contacts,
+      feedbacks: data.feedbacks,
     };
     await setImportedData(mergedData);
   };
@@ -386,7 +415,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     try {
       if (isLocalMode) {
         setData((prev) => {
-          const next = { ...prev, ganttCells: partialData.ganttCells, contacts: prev.contacts };
+          const next = { ...prev, ganttCells: partialData.ganttCells, contacts: prev.contacts, feedbacks: prev.feedbacks };
           saveLocalData(next);
           return next;
         });
@@ -477,6 +506,52 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadFeedbacks = async () => {
+    const projectId = await getOrCreateProjectId();
+    const { data: rows, error } = await supabase.from('task_feedbacks').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+    if (error) throw new Error(`task_feedbacks: ${error.message}`);
+    setData((prev) => ({
+      ...prev,
+      feedbacks: (rows || []).map((r: any) => ({
+        id: r.id,
+        projectId: r.project_id,
+        taskId: r.task_id || undefined,
+        ganttCellId: r.gantt_cell_id || undefined,
+        institution: r.institution || '',
+        contactName: r.contact_name || undefined,
+        contactEmail: r.contact_email || undefined,
+        targetType: r.target_type || 'task_field',
+        targetField: r.target_field || 'current_progress',
+        originalValue: r.original_value || '',
+        suggestedValue: r.suggested_value || '',
+        comment: r.comment || '',
+        status: r.status || 'open',
+        adminReply: r.admin_reply || undefined,
+        resolvedBy: r.resolved_by || undefined,
+        resolvedAt: r.resolved_at || undefined,
+        createdAt: r.created_at || '',
+        updatedAt: r.updated_at || '',
+      })),
+    }));
+  };
+
+  const updateFeedback = async (feedbackId: string, updates: { status: FeedbackStatus; adminReply?: string; applyToOfficial?: boolean }) => {
+    const feedback = (data.feedbacks || []).find((item) => item.id === feedbackId);
+    if (!feedback) throw new Error('反馈不存在');
+    if (updates.applyToOfficial && updates.status === 'accepted') {
+      if (feedback.targetField === 'current_progress') await updateTask(feedback.taskId || '', { currentProgress: feedback.suggestedValue || '' });
+      if (feedback.targetField === 'next_step') await updateTask(feedback.taskId || '', { nextStep: feedback.suggestedValue || '' });
+      if (feedback.targetField === 'remark') await updateTask(feedback.taskId || '', { remark: feedback.suggestedValue || '' });
+      if (feedback.targetField === 'gantt_node' && feedback.ganttCellId) {
+        await supabase.from('gantt_cells').update({ label: feedback.suggestedValue || feedback.comment || '' }).eq('id', feedback.ganttCellId);
+      }
+    }
+    const patch = { status: updates.status, admin_reply: updates.adminReply || null, resolved_by: 'admin', resolved_at: updates.status === 'open' ? null : new Date().toISOString(), updated_at: new Date().toISOString() };
+    const { error } = await supabase.from('task_feedbacks').update(patch).eq('id', feedbackId);
+    if (error) throw new Error(`feedback update: ${error.message}`);
+    await loadFeedbacks();
   };
 
   const resetToSeed = async () => {
@@ -724,6 +799,8 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
         importGanttOnly,
         resetToSeed,
         refresh,
+        loadFeedbacks,
+        updateFeedback,
         updateTask,
         updateGanttCell,
         addGanttCell,

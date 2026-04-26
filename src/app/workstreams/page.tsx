@@ -5,7 +5,7 @@ import { useIpoData } from '@/context/IpoDataContext';
 import WorkstreamSection from '@/components/WorkstreamSection';
 import KanbanBoard from '@/components/KanbanBoard';
 export default function WorkstreamsPage() {
-  const { data, hasImported, updateTask, addWorkstream, removeWorkstream, renameWorkstream, addTask, removeTask } = useIpoData();
+  const { data, hasImported, updateTask, updateFeedback, addWorkstream, removeWorkstream, renameWorkstream, addTask, removeTask } = useIpoData();
   const { workstreams, tasks, contacts } = data;
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [institutionFilter, setInstitutionFilter] = React.useState('');
@@ -160,6 +160,8 @@ export default function WorkstreamsPage() {
               onRemoveTask={removeTask}
               onRenameWorkstream={renameWorkstream}
               onRemoveWorkstream={removeWorkstream}
+              feedbacks={data.feedbacks || []}
+              onUpdateFeedback={updateFeedback}
               defaultOpen={!((institutionFilter || assigneeFilter) && wsTasks.length === 0)}
             />
           ))

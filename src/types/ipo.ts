@@ -41,11 +41,37 @@ export interface GanttCell {
   type?: 'milestone' | 'event' | 'progress' | 'start' | 'end' | 'ddl' | 'keynode';
 }
 
+export type FeedbackTargetType = 'task_field' | 'gantt_cell';
+export type FeedbackTargetField = 'current_progress' | 'next_step' | 'remark' | 'gantt_node';
+export type FeedbackStatus = 'open' | 'accepted' | 'rejected' | 'resolved';
+
+export interface TaskFeedback {
+  id: string;
+  projectId: string;
+  taskId?: string;
+  ganttCellId?: string;
+  institution: string;
+  contactName?: string;
+  contactEmail?: string;
+  targetType: FeedbackTargetType;
+  targetField: FeedbackTargetField;
+  originalValue?: string;
+  suggestedValue?: string;
+  comment?: string;
+  status: FeedbackStatus;
+  adminReply?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface IpoProjectData {
   workstreams: Workstream[];
   tasks: Task[];
   ganttCells: GanttCell[];
   contacts: ProjectContact[];
+  feedbacks?: TaskFeedback[];
 }
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {

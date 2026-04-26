@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 import { createClient } from '@supabase/supabase-js';
-import type { GanttCell, ProjectContact, Task, TaskStatus, Workstream } from '@/types/ipo';
+import type { FeedbackStatus, FeedbackTargetField, GanttCell, ProjectContact, Task, TaskFeedback, TaskStatus, Workstream } from '@/types/ipo';
 
 export type PortalPermission = 'readonly' | 'sponsor_h_edit';
 
@@ -24,6 +24,7 @@ export interface PortalPayload extends PortalSession {
   tasks: PortalTask[];
   workstreams: Workstream[];
   ganttCells: GanttCell[];
+  feedbacks?: TaskFeedback[];
   contacts: Pick<ProjectContact, 'id' | 'name' | 'email' | 'institution' | 'isKeyContact'>[];
 }
 
@@ -124,6 +125,48 @@ function mapGanttCell(row: any): GanttCell {
   };
 }
 
+function mapTaskFeedback(row: any): TaskFeedback {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    taskId: row.task_id || undefined,
+    ganttCellId: row.gantt_cell_id || undefined,
+    institution: row.institution || '',
+    contactName: row.contact_name || undefined,
+    contactEmail: row.contact_email || undefined,
+    targetType: row.target_type || 'task_field',
+    targetField: row.target_field || 'current_progress',
+    originalValue: row.original_value || '',
+    suggestedValue: row.suggested_value || '',
+    comment: row.comment || '',
+    status: row.status || 'open',
+    adminReply: row.admin_reply || undefined,
+    resolvedBy: row.resolved_by || undefined,
+    resolvedAt: row.resolved_at || undefined,
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+const FEEDBACK_TARGET_FIELDS: FeedbackTargetField[] = ['current_progress', 'next_step', 'remark', 'gantt_node'];
+const FEEDBACK_STATUSES: FeedbackStatus[] = ['open', 'accepted', 'rejected', 'resolved'];
+
+function taskFieldToDbColumn(field: FeedbackTargetField): 'current_progress' | 'next_step' | 'remark' | null {
+  if (field === 'current_progress' || field === 'next_step' || field === 'remark') return field;
+  return null;
+}
+
+function getTaskFieldValue(task: Task, field: FeedbackTargetField): string {
+  if (field === 'current_progress') return task.currentProgress || '';
+  if (field === 'next_step') return task.nextStep || '';
+  if (field === 'remark') return task.remark || '';
+  return '';
+}
+
+function getGanttCellValue(cell: GanttCell): string {
+  return [cell.date, cell.type || 'event', cell.label || ''].filter(Boolean).join(' · ');
+}
+
 function isEditableGanttType(type: GanttCell['type']): boolean {
   return type === 'keynode' || type === 'milestone' || type === 'ddl' || type === 'event' || type === 'start' || type === 'end';
 }
@@ -198,6 +241,7 @@ export async function verifyPortalToken(token: string): Promise<PortalPayload> {
       .filter((contact) => session.canEdit || isCompanyInstitution(session.institution) || normalize(contact.institution) === normalize(session.institution))
       .map(({ id, name, email, institution, isKeyContact }) => ({ id, name, email, institution, isKeyContact })),
     ganttCells,
+    feedbacks: [],
     tasks: visibleTasks.map((task) => {
       const assignee = task.assigneeId ? contactMap.get(task.assigneeId) : undefined;
       return {
@@ -525,4 +569,147 @@ export async function updatePortalGanttCell(token: string, cellId: string, updat
   if (updateError) throw new Error(`gantt cell update failed: ${updateError.message}`);
 
   return verifyPortalToken(token);
+}
+
+
+export function filterFeedbacksForInstitution(feedbacks: TaskFeedback[], session: PortalSession): TaskFeedback[] {
+  if (session.canEdit || isCompanyInstitution(session.institution)) return feedbacks;
+  return feedbacks.filter((fb) => normalize(fb.institution) === normalize(session.institution));
+}
+
+async function assertTaskVisibleToInstitution(supabase: ReturnType<typeof getSupabaseAdmin>, session: PortalSession, taskId: string): Promise<Task> {
+  const [{ data: taskRows, error: taskError }, { data: contactRows, error: contactsError }, { data: allTaskRows, error: allTasksError }] = await Promise.all([
+    supabase.from('tasks').select('*').eq('id', taskId).eq('project_id', session.projectId).limit(1),
+    supabase.from('project_contacts').select('*').eq('project_id', session.projectId),
+    supabase.from('tasks').select('*').eq('project_id', session.projectId),
+  ]);
+  if (taskError) throw new Error(`task query failed: ${taskError.message}`);
+  if (contactsError) throw new Error(`contacts query failed: ${contactsError.message}`);
+  if (allTasksError) throw new Error(`tasks query failed: ${allTasksError.message}`);
+  const taskRow = taskRows?.[0];
+  if (!taskRow) throw new Error('事项不存在或不属于本项目');
+  const visibleIds = new Set(filterTasksForInstitution((allTaskRows || []).map(mapTask), (contactRows || []).map(mapContact), session.institution).map((task) => task.id));
+  if (!visibleIds.has(taskId)) throw new Error('不可对非本机构可见事项提交反馈');
+  return mapTask(taskRow);
+}
+
+async function assertGanttCellVisibleToInstitution(supabase: ReturnType<typeof getSupabaseAdmin>, session: PortalSession, ganttCellId: string): Promise<{ cell: GanttCell; task: Task }> {
+  const { data: rows, error } = await supabase.from('gantt_cells').select('*').eq('id', ganttCellId).limit(1);
+  if (error) throw new Error(`gantt cell query failed: ${error.message}`);
+  const row = rows?.[0];
+  if (!row) throw new Error('甘特节点不存在');
+  const task = await assertTaskVisibleToInstitution(supabase, session, row.task_id);
+  return { cell: mapGanttCell(row), task };
+}
+
+export async function getPortalFeedbacks(token: string): Promise<{ ok: true; feedbacks: TaskFeedback[] }> {
+  const session = await verifyPortalSession(token);
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('task_feedbacks')
+    .select('*')
+    .eq('project_id', session.projectId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`feedback query failed: ${error.message}`);
+  return { ok: true, feedbacks: filterFeedbacksForInstitution((data || []).map(mapTaskFeedback), session) };
+}
+
+export type CreatePortalFeedbackInput = {
+  taskId?: string;
+  ganttCellId?: string;
+  targetField?: FeedbackTargetField;
+  suggestedValue?: string;
+  comment?: string;
+  contactName?: string;
+  contactEmail?: string;
+};
+
+export async function createPortalFeedback(token: string, input: CreatePortalFeedbackInput): Promise<{ ok: true; feedbacks: TaskFeedback[] }> {
+  const session = await verifyPortalSession(token);
+  const targetField = input.targetField as FeedbackTargetField;
+  if (!FEEDBACK_TARGET_FIELDS.includes(targetField)) throw new Error('反馈字段无效');
+  const suggestedValue = String(input.suggestedValue || '').trim();
+  const comment = String(input.comment || '').trim();
+  if (!suggestedValue && !comment) throw new Error('请填写建议内容或说明');
+
+  const supabase = getSupabaseAdmin();
+  let taskId = String(input.taskId || '').trim();
+  let ganttCellId: string | null = null;
+  let targetType: 'task_field' | 'gantt_cell' = 'task_field';
+  let originalValue = '';
+
+  if (targetField === 'gantt_node') {
+    ganttCellId = String(input.ganttCellId || '').trim();
+    if (!ganttCellId) throw new Error('缺少甘特节点 ID');
+    const { cell, task } = await assertGanttCellVisibleToInstitution(supabase, session, ganttCellId);
+    taskId = task.id;
+    targetType = 'gantt_cell';
+    originalValue = getGanttCellValue(cell);
+  } else {
+    if (!taskId) throw new Error('缺少事项 ID');
+    const task = await assertTaskVisibleToInstitution(supabase, session, taskId);
+    targetType = 'task_field';
+    originalValue = getTaskFieldValue(task, targetField);
+  }
+
+  const { error } = await supabase.from('task_feedbacks').insert({
+    project_id: session.projectId,
+    task_id: taskId,
+    gantt_cell_id: ganttCellId,
+    institution: session.institution,
+    contact_name: String(input.contactName || '').trim() || null,
+    contact_email: String(input.contactEmail || '').trim() || null,
+    target_type: targetType,
+    target_field: targetField,
+    original_value: originalValue,
+    suggested_value: suggestedValue,
+    comment,
+    status: 'open',
+  });
+  if (error) throw new Error(`feedback insert failed: ${error.message}`);
+  return getPortalFeedbacks(token);
+}
+
+export type UpdatePortalFeedbackInput = {
+  status?: FeedbackStatus;
+  adminReply?: string;
+  resolvedBy?: string;
+  applyToOfficial?: boolean;
+};
+
+export async function updatePortalFeedback(token: string, feedbackId: string, input: UpdatePortalFeedbackInput): Promise<{ ok: true; feedbacks: TaskFeedback[] }> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '处理反馈');
+  const status = input.status as FeedbackStatus;
+  if (!FEEDBACK_STATUSES.includes(status)) throw new Error('反馈状态无效');
+  const supabase = getSupabaseAdmin();
+  const { data: rows, error: queryError } = await supabase
+    .from('task_feedbacks')
+    .select('*')
+    .eq('id', feedbackId)
+    .eq('project_id', session.projectId)
+    .limit(1);
+  if (queryError) throw new Error(`feedback query failed: ${queryError.message}`);
+  const feedback = rows?.[0] ? mapTaskFeedback(rows[0]) : null;
+  if (!feedback) throw new Error('反馈不存在');
+
+  if (status === 'accepted' && input.applyToOfficial) {
+    if (feedback.targetField === 'gantt_node' && feedback.ganttCellId) {
+      await supabase.from('gantt_cells').update({ label: feedback.suggestedValue || feedback.comment || '' }).eq('id', feedback.ganttCellId);
+    } else {
+      const column = taskFieldToDbColumn(feedback.targetField);
+      if (column && feedback.taskId) await updatePortalTask(token, feedback.taskId, { [column === 'current_progress' ? 'currentProgress' : column === 'next_step' ? 'nextStep' : 'remark']: feedback.suggestedValue || '' } as any);
+    }
+  }
+
+  const now = new Date().toISOString();
+  const { error: updateError } = await supabase.from('task_feedbacks').update({
+    status,
+    admin_reply: String(input.adminReply || '').trim() || null,
+    resolved_by: String(input.resolvedBy || session.institution).trim(),
+    resolved_at: status === 'open' ? null : now,
+    updated_at: now,
+  }).eq('id', feedbackId).eq('project_id', session.projectId);
+  if (updateError) throw new Error(`feedback update failed: ${updateError.message}`);
+  return getPortalFeedbacks(token);
 }

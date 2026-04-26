@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Task, TaskStatus, STATUS_LABEL, STATUS_COLOR, ProjectContact } from '@/types/ipo';
+import { FeedbackStatus, Task, TaskFeedback, TaskStatus, STATUS_LABEL, STATUS_COLOR, ProjectContact } from '@/types/ipo';
 
 interface WorkstreamSectionProps {
   workstreamName: string;
@@ -14,6 +14,8 @@ interface WorkstreamSectionProps {
   onRemoveTask?: (taskId: string) => void;
   onRenameWorkstream?: (wsId: string, newName: string) => void;
   onRemoveWorkstream?: (wsId: string) => void;
+  feedbacks?: TaskFeedback[];
+  onUpdateFeedback?: (feedbackId: string, updates: { status: FeedbackStatus; adminReply?: string; applyToOfficial?: boolean }) => Promise<void>;
 }
 
 /* 行内编辑单元格 */
@@ -129,6 +131,26 @@ function getCandidateContactsForTask(task: Task, contacts: ProjectContact[]): Pr
 
 
 
+
+function feedbackFieldLabel(field: TaskFeedback['targetField']) {
+  if (field === 'current_progress') return '当前进度';
+  if (field === 'next_step') return '下一步计划';
+  if (field === 'remark') return '备注';
+  return '甘特节点';
+}
+
+function FeedbackDrawer({ task, feedbacks, onUpdateFeedback, onClose }: { task: Task; feedbacks: TaskFeedback[]; onUpdateFeedback?: (feedbackId: string, updates: { status: FeedbackStatus; adminReply?: string; applyToOfficial?: boolean }) => Promise<void>; onClose: () => void }) {
+  const [reply, setReply] = React.useState<Record<string, string>>({});
+  const [savingId, setSavingId] = React.useState('');
+  const handle = async (feedback: TaskFeedback, status: FeedbackStatus, applyToOfficial = false) => {
+    if (!onUpdateFeedback) return;
+    setSavingId(feedback.id);
+    try { await onUpdateFeedback(feedback.id, { status, adminReply: reply[feedback.id] || '', applyToOfficial }); }
+    finally { setSavingId(''); }
+  };
+  return <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-slate-900">反馈处理</h2><p className="mt-1 text-xs text-slate-500">{task.title}</p></div><button onClick={onClose} className="rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600">关闭</button></div><div className="mt-4 space-y-3">{feedbacks.length === 0 ? <p className="text-sm text-slate-400">暂无反馈。</p> : feedbacks.map((fb) => <div key={fb.id} className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-700">💬 {feedbackFieldLabel(fb.targetField)} · {fb.status}</span><span className="text-[11px] text-slate-400">{fb.institution} {fb.contactName ? `｜${fb.contactName}` : ''}</span></div><div className="mt-3 grid gap-2 text-xs"><div><span className="font-semibold text-slate-500">原内容：</span><p className="mt-1 whitespace-pre-wrap rounded-lg bg-white p-2 text-slate-600">{fb.originalValue || '-'}</p></div><div><span className="font-semibold text-slate-500">建议：</span><p className="mt-1 whitespace-pre-wrap rounded-lg bg-white p-2 text-slate-700">{fb.suggestedValue || '-'}</p></div>{fb.comment && <div><span className="font-semibold text-slate-500">说明：</span><p className="mt-1 whitespace-pre-wrap rounded-lg bg-white p-2 text-slate-700">{fb.comment}</p></div>}</div><textarea value={reply[fb.id] || fb.adminReply || ''} onChange={(e) => setReply({ ...reply, [fb.id]: e.target.value })} placeholder="处理回复（可选）" className="mt-3 min-h-16 w-full rounded-lg border border-amber-100 bg-white p-2 text-xs text-slate-700" /><div className="mt-3 flex flex-wrap gap-2"><button disabled={savingId === fb.id} onClick={() => handle(fb, 'accepted', true)} className="rounded-lg bg-green-600 px-3 py-1 text-xs text-white disabled:opacity-50">采纳并写入</button><button disabled={savingId === fb.id} onClick={() => handle(fb, 'accepted', false)} className="rounded-lg bg-green-50 px-3 py-1 text-xs text-green-700 disabled:opacity-50">采纳</button><button disabled={savingId === fb.id} onClick={() => handle(fb, 'resolved', false)} className="rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-700 disabled:opacity-50">标记已处理</button><button disabled={savingId === fb.id} onClick={() => handle(fb, 'rejected', false)} className="rounded-lg bg-red-50 px-3 py-1 text-xs text-red-600 disabled:opacity-50">驳回</button></div></div>)}</div></div>;
+}
+
 function AssigneeSelect({
   task,
   contacts,
@@ -198,11 +220,14 @@ export default function WorkstreamSection({
   onAddTask,
   onRemoveTask,
   onRenameWorkstream,
-  onRemoveWorkstream
+  onRemoveWorkstream,
+  feedbacks = [],
+  onUpdateFeedback
 }: WorkstreamSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { setOpen(defaultOpen ?? true); }, [defaultOpen]);
   const [addingTask, setAddingTask] = useState(false);
+  const [feedbackTaskId, setFeedbackTaskId] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingWsName, setEditingWsName] = useState(false);
   const [wsNameDraft, setWsNameDraft] = useState(workstreamName);
@@ -357,6 +382,8 @@ export default function WorkstreamSection({
             {sortedTasks.map((task) => {
               const parties = getParties(task);
               const isBlocked = task.status === 'blocked';
+              const taskFeedbacks = feedbacks.filter(fb => fb.taskId === task.id);
+              const openFeedbackCount = taskFeedbacks.filter(fb => fb.status === 'open').length;
               return (
                 <tr key={task.id} className={`border-b border-slate-50 hover:bg-brand-50/30 transition-colors align-top ${isBlocked ? 'bg-red-50/40 border-l-2 border-l-red-400' : ''}`}>
                   <td className="py-2 px-3">
@@ -370,6 +397,9 @@ export default function WorkstreamSection({
                     </div>
                     {parties && (
                       <div className="text-[10px] text-slate-400 mt-0.5 px-1">当前分工：{parties}</div>
+                    )}
+                    {taskFeedbacks.length > 0 && (
+                      <button onClick={() => setFeedbackTaskId(task.id)} className="mt-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100">💬 反馈 {openFeedbackCount}/{taskFeedbacks.length}</button>
                     )}
                   </td>
                   <td className="py-2 px-3">
@@ -428,6 +458,14 @@ export default function WorkstreamSection({
           </tbody>
         </table>
       </div>}
+      {feedbackTaskId && (
+        <FeedbackDrawer
+          task={tasks.find(t => t.id === feedbackTaskId)!}
+          feedbacks={feedbacks.filter(fb => fb.taskId === feedbackTaskId)}
+          onUpdateFeedback={onUpdateFeedback}
+          onClose={() => setFeedbackTaskId(null)}
+        />
+      )}
     </div>
   );
 }
