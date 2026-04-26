@@ -15,6 +15,8 @@ interface WorkstreamSectionProps {
   onRenameWorkstream?: (wsId: string, newName: string) => void;
   onRemoveWorkstream?: (wsId: string) => void;
   feedbacks?: TaskFeedback[];
+  readOnly?: boolean;
+  hideAssignee?: boolean;
   onUpdateFeedback?: (feedbackId: string, updates: { status: FeedbackStatus; adminReply?: string; applyToOfficial?: boolean }) => Promise<void>;
 }
 
@@ -25,12 +27,14 @@ function EditableCell({
   placeholder = '-',
   className = '',
   multiline = false,
+  readOnly = false,
 }: {
   value: string;
   onSave: (v: string) => void;
   placeholder?: string;
   className?: string;
   multiline?: boolean;
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -43,9 +47,9 @@ function EditableCell({
   if (!editing) {
     return (
       <div
-        className={`cursor-pointer hover:bg-slate-50 rounded px-1 py-0.5 min-h-[22px] ${className}`}
-        onClick={() => { setDraft(value); setEditing(true); }}
-        title="点击编辑"
+        className={`${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'} rounded px-1 py-0.5 min-h-[22px] ${className}`}
+        onClick={() => { if (!readOnly) { setDraft(value); setEditing(true); } }}
+        title={readOnly ? undefined : '点击编辑'}
       >
         {value || <span className="text-slate-300">{placeholder}</span>}
       </div>
@@ -222,7 +226,9 @@ export default function WorkstreamSection({
   onRenameWorkstream,
   onRemoveWorkstream,
   feedbacks = [],
-  onUpdateFeedback
+  onUpdateFeedback,
+  readOnly = false,
+  hideAssignee = false
 }: WorkstreamSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { setOpen(defaultOpen ?? true); }, [defaultOpen]);
@@ -235,11 +241,11 @@ export default function WorkstreamSection({
   const total = tasks.length;
 
   const handleUpdate = (taskId: string, updates: Partial<Task>) => {
-    if (onUpdateTask) onUpdateTask(taskId, updates);
+    if (!readOnly && onUpdateTask) onUpdateTask(taskId, updates);
   };
 
   const handleAddTask = () => {
-    if (newTaskTitle.trim() && onAddTask) {
+    if (!readOnly && newTaskTitle.trim() && onAddTask) {
       onAddTask(workstreamId, newTaskTitle.trim());
       setNewTaskTitle('');
       setAddingTask(false);
@@ -247,7 +253,7 @@ export default function WorkstreamSection({
   };
 
   const handleRemoveTask = (taskId: string) => {
-    if (onRemoveTask && confirm('确认删除此事项？')) {
+    if (!readOnly && onRemoveTask && confirm('确认删除此事项？')) {
       onRemoveTask(taskId);
     }
   };
@@ -279,7 +285,7 @@ export default function WorkstreamSection({
                 onChange={e => setWsNameDraft(e.target.value)}
                 onBlur={() => {
                   setEditingWsName(false);
-                  if (wsNameDraft.trim() && wsNameDraft !== workstreamName && onRenameWorkstream) {
+                  if (!readOnly && wsNameDraft.trim() && wsNameDraft !== workstreamName && onRenameWorkstream) {
                     onRenameWorkstream(workstreamId, wsNameDraft.trim());
                   } else {
                     setWsNameDraft(workstreamName);
@@ -296,8 +302,8 @@ export default function WorkstreamSection({
             ) : (
               <h3
                 className="font-semibold text-slate-800 text-[13px] hover:text-brand-600"
-                onDoubleClick={e => { e.stopPropagation(); setEditingWsName(true); }}
-                title="双击重命名"
+                onDoubleClick={e => { if (!readOnly && onRenameWorkstream) { e.stopPropagation(); setEditingWsName(true); } }}
+                title={readOnly ? undefined : '双击重命名'}
               >
                 {workstreamName}
               </h3>
@@ -317,7 +323,7 @@ export default function WorkstreamSection({
             );
           })}
           </div>
-          {onRemoveWorkstream && (
+          {!readOnly && onRemoveWorkstream && (
             <button
               onClick={(e) => { e.stopPropagation(); if (confirm(`确认删除条线「${workstreamName}」及其所有事项？`)) onRemoveWorkstream(workstreamId); }}
               className="text-red-400 hover:text-red-600 text-xs ml-1"
@@ -329,7 +335,7 @@ export default function WorkstreamSection({
         </div>
       </div>
       {open && <div className="overflow-x-auto">
-        <div className="px-3 py-2 border-b border-slate-100 flex justify-end">
+        {!readOnly && onAddTask && <div className="px-3 py-2 border-b border-slate-100 flex justify-end">
           {!addingTask ? (
             <button
               onClick={() => setAddingTask(true)}
@@ -365,7 +371,7 @@ export default function WorkstreamSection({
               </button>
             </div>
           )}
-        </div>
+        </div>}
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-white">
@@ -373,9 +379,9 @@ export default function WorkstreamSection({
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">当前进度</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">下一步计划</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[200px]">备注</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">负责人</th>
+              {!hideAssignee && <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">负责人</th>}
               <th className="text-center py-2 px-3 text-slate-400 font-medium text-[11px] w-[80px]">状态</th>
-              <th className="text-center py-2 px-3 text-slate-400 font-medium text-[11px] w-[50px]">操作</th>
+              {!readOnly && <th className="text-center py-2 px-3 text-slate-400 font-medium text-[11px] w-[50px]">操作</th>}
             </tr>
           </thead>
           <tbody>
@@ -393,6 +399,7 @@ export default function WorkstreamSection({
                         value={task.title}
                         onSave={v => handleUpdate(task.id, { title: v })}
                         className="font-medium text-slate-800 text-xs"
+                        readOnly={readOnly}
                       />
                     </div>
                     {parties && (
@@ -408,6 +415,7 @@ export default function WorkstreamSection({
                       onSave={v => handleUpdate(task.id, { currentProgress: v })}
                       className="text-slate-600 text-xs"
                       multiline
+                      readOnly={readOnly}
                     />
                   </td>
                   <td className="py-2 px-3">
@@ -416,6 +424,7 @@ export default function WorkstreamSection({
                       onSave={v => handleUpdate(task.id, { nextStep: v })}
                       className="text-slate-600 text-xs"
                       multiline
+                      readOnly={readOnly}
                     />
                   </td>
                   <td className="py-2 px-3">
@@ -425,9 +434,10 @@ export default function WorkstreamSection({
                       className="text-slate-600 text-xs"
                       multiline
                       placeholder="添加备注..."
+                      readOnly={readOnly}
                     />
                   </td>
-                  <td className="py-2 px-3">
+                  {!hideAssignee && <td className="py-2 px-3">
                     <AssigneeSelect
                       task={task}
                       contacts={contacts}
@@ -436,14 +446,14 @@ export default function WorkstreamSection({
                     {task.assignee && !task.assigneeId && (
                       <div className="mt-1 text-[10px] text-amber-600">原：{task.assignee}</div>
                     )}
-                  </td>
+                  </td>}
                   <td className="py-2 px-3 text-center">
-                    <StatusSelect
+                    {readOnly ? <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COLOR[task.status]}`}>{STATUS_LABEL[task.status]}</span> : <StatusSelect
                       value={task.status}
                       onChange={v => handleUpdate(task.id, { status: v })}
-                    />
+                    />}
                   </td>
-                  <td className="py-2 px-3 text-center">
+                  {!readOnly && <td className="py-2 px-3 text-center">
                     <button
                       onClick={() => handleRemoveTask(task.id)}
                       className="text-red-500 hover:text-red-700 text-xs"
@@ -451,7 +461,7 @@ export default function WorkstreamSection({
                     >
                       🗑️
                     </button>
-                  </td>
+                  </td>}
                 </tr>
               );
             })}

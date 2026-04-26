@@ -23,9 +23,9 @@ assert(portalAuth.includes("requireSponsorHEdit(session, '删除事项')"), 'por
 assert(portalAuth.includes("requireSponsorHEdit(session, '删除甘特图节点')"), 'portal gantt deletion requires sponsor H edit');
 assert(portalPage.includes('data.canEdit && <WorkstreamManager'), 'workstream manager is gated by canEdit');
 assert(portalPage.includes('data.canEdit && <NewPortalTaskForm'), 'new task form is gated by canEdit');
-assert(portalPage.includes('data.canEdit && <FullGanttDistribution'), 'full gantt distribution is gated by canEdit');
-assert(portalPage.includes('data.canEdit ? <EditableTaskCard'), 'editable task card is gated by canEdit');
-assert(portalPage.includes(': <ReadonlyTaskCard'), 'readonly task card exists for ordinary institutions');
+assert(portalPage.includes('readOnly={!data.canEdit}') && portalPage.includes('onUpdateTask={data.canEdit ? updateTask : undefined}'), 'editable task card is gated by canEdit');
+assert(portalPage.includes('hideAssignee={!data.canEdit}') && portalPage.includes('onRemoveTask={data.canEdit ? removeTask : undefined}'), 'readonly task card exists for ordinary institutions');
+assert(portalPage.includes('data.canEdit ? addGanttMarker : undefined'), 'full gantt distribution is gated by canEdit');
 assert(navBar.includes('const isPortal = pathname?.startsWith(\'/portal\')'), 'NavBar detects portal routes');
 assert(navBar.includes('if (isPortal) return null;'), 'NavBar is hidden on institution portal');
 assert(globalSearch.includes('const pathname = usePathname();'), 'GlobalSearch can detect current route');

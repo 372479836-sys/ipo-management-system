@@ -40,7 +40,7 @@ const requiredSnippets = [
   ['src/app/portal/page.tsx', 'canEdit'],
   ['src/app/portal/page.tsx', '关键节点'],
   ['src/app/portal/page.tsx', '/api/portal/gantt'],
-  ['src/app/portal/page.tsx', 'data.canEdit ? \'项目联系人\''],
+  ['src/app/portal/page.tsx', 'hideAssignee={!data.canEdit}'],
 ];
 
 const failures = [];

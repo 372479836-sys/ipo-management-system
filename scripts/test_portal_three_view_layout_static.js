@@ -21,8 +21,8 @@ assert(portalPage.includes('PortalGanttView') || portalPage.includes('PortalGant
 assert(portalPage.includes('Dashboard') && portalPage.includes('条线视图') && portalPage.includes('甘特视图'), 'portal renders three main-view tabs');
 assert(portalPage.includes('总体进度') && portalPage.includes('未来7天 DDL / 里程碑') && portalPage.includes('各条线事项分布'), 'portal dashboard mirrors admin dashboard sections');
 assert(portalPage.includes('data.canEdit && <WorkstreamManager') && portalPage.includes('data.canEdit && <NewPortalTaskForm'), 'sponsor H management controls remain canEdit gated');
-assert(portalPage.includes('data.canEdit ? <EditableTaskCard') && portalPage.includes(': <ReadonlyTaskCard'), 'workstream task cards keep editable/readonly split');
-assert(portalPage.includes('PortalGanttTimeline') || portalPage.includes('ganttTimelineRows'), 'portal gantt tab includes timeline-style gantt view');
-assert(portalPage.includes('data.canEdit && <FullGanttDistribution'), 'full gantt distribution remains sponsor H only');
+assert(portalPage.includes('<WorkstreamSection') && portalPage.includes('readOnly={!data.canEdit}'), 'workstream task cards keep editable/readonly split');
+assert(portalPage.includes('<GanttGrid') && portalPage.includes('ganttCells={data.ganttCells}'), 'portal gantt tab includes timeline-style gantt view');
+assert(portalPage.includes('data.canEdit ? addGanttMarker : undefined'), 'full gantt editing remains sponsor H only');
 
 console.log('portal three-view layout static checks passed');

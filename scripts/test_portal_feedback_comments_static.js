@@ -27,7 +27,7 @@ assert(route.includes('GET') && route.includes('POST') && route.includes('PATCH'
 assert(route.includes('getPortalFeedbacks') && route.includes('createPortalFeedback') && route.includes('updatePortalFeedback'), 'feedback API calls portalAuth helpers');
 
 const portalPage = read('src/app/portal/page.tsx');
-assert(portalPage.includes('FeedbackForm'), 'portal page contains FeedbackForm');
+assert(portalPage.includes('PortalCommentDrawer'), 'portal page contains task-level feedback drawer');
 assert(portalPage.includes('/api/portal/feedbacks'), 'portal page calls feedback API');
 assert(portalPage.includes('提交反馈'), 'portal page shows submit feedback UI');
 assert(portalPage.includes('当前进度') && portalPage.includes('下一步计划') && portalPage.includes('备注') && portalPage.includes('甘特节点'), 'portal feedback covers requested targets');

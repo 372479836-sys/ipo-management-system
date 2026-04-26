@@ -10,6 +10,7 @@ interface GanttGridProps {
   onAddMarker?: (taskId: string, date: string, type: 'start' | 'ddl' | 'keynode', label: string) => void;
   onRemoveCell?: (cellId: string) => void;
   onMoveCell?: (cellId: string, newDate: string) => void;
+  readOnly?: boolean;
 }
 
 interface WeekDef {
@@ -205,7 +206,7 @@ function CellContextMenu({
   );
 }
 
-export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell, onMoveCell }: GanttGridProps) {
+export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker, onRemoveCell, onMoveCell, readOnly = false }: GanttGridProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; taskId: string; date: string; cellId?: string } | null>(null);
@@ -288,12 +289,13 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
 
   const handleCellClick = (e: React.MouseEvent, taskId: string, date: string, cellId?: string) => {
     e.stopPropagation();
+    if (readOnly || (!onAddMarker && !onRemoveCell)) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId, date, cellId });
   };
 
   const handleAddMarker = (type: 'start' | 'ddl' | 'keynode', customLabel?: string) => {
-    if (!ctxMenu || !onAddMarker) return;
-    onAddMarker(ctxMenu.taskId, ctxMenu.date, type, customLabel || MARKER_LABELS[type]);
+    if (!ctxMenu || readOnly || !onAddMarker) return;
+    onAddMarker && onAddMarker(ctxMenu.taskId, ctxMenu.date, type, customLabel || MARKER_LABELS[type]);
   };
 
   const todayIdx = allDates.indexOf(today);
@@ -559,21 +561,22 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
                                 backgroundColor: cellBg,
                               }}
                               onClick={(e) => cell ? handleCellClick(e, task.id, date, cell.id) : handleCellClick(e, task.id, date)}
-                              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                              onDragOver={(e) => { if (!readOnly && onMoveCell) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
                               onDrop={(e) => {
                                 e.preventDefault();
                                 const cellId = e.dataTransfer.getData('text/cell-id');
-                                if (cellId && onMoveCell) onMoveCell(cellId, date);
+                                if (!readOnly && cellId && onMoveCell) onMoveCell && onMoveCell(cellId, date);
                               }}
                             >
                               {isNode && (
                                 <div
-                                  draggable={!!onMoveCell}
+                                  draggable={!readOnly && !!onMoveCell}
                                   onDragStart={(e) => {
+                                    if (readOnly || !onMoveCell) return;
                                     e.dataTransfer.setData('text/cell-id', cell.id);
                                     e.dataTransfer.effectAllowed = 'move';
                                   }}
-                                  className="cursor-pointer flex items-center justify-center w-full h-full relative"
+                                  className={`${readOnly ? 'cursor-default' : 'cursor-pointer'} flex items-center justify-center w-full h-full relative`}
                                   style={{ zIndex: 2 }}
                                   title={cell.label ? `${cell.label} (${cell.date})` : cell.date}
                                 >
@@ -657,7 +660,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
       )}
 
       {/* 左键菜单 */}
-      {ctxMenu && (() => {
+      {!readOnly && ctxMenu && (() => {
         const cell = ctxMenu.cellId ? ganttCells.find(c => c.id === ctxMenu.cellId) : undefined;
         const task = tasks.find(t => t.id === ctxMenu.taskId);
         const cellInfo = cell ? { label: cell.label || '', date: cell.date, type: cell.type || 'event', taskTitle: task?.title || '' } : undefined;
@@ -666,7 +669,7 @@ export default function GanttGrid({ workstreams, tasks, ganttCells, onAddMarker,
             x={ctxMenu.x}
             y={ctxMenu.y}
             onAdd={handleAddMarker}
-            onRemove={ctxMenu.cellId && onRemoveCell ? () => onRemoveCell(ctxMenu.cellId!) : undefined}
+            onRemove={ctxMenu.cellId && onRemoveCell ? () => { onRemoveCell && onRemoveCell(ctxMenu.cellId!); } : undefined}
             existingCellId={ctxMenu.cellId}
             cellInfo={cellInfo}
             onClose={() => setCtxMenu(null)}
