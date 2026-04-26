@@ -1,6 +1,7 @@
 import { IpoProjectData } from '@/types/ipo';
 
 export const mockIpoData: IpoProjectData = {
+  contacts: [],
   workstreams: [
     { id: 'ws-1', name: '项目整体协调', sortOrder: 1 },
     { id: 'ws-2', name: '中介委任', sortOrder: 2 },

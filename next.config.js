@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // Phase2 portal uses Next.js API Routes for token verification / sponsor-H edits.
+  // Do not use `output: 'export'`; static export cannot include API routes.
   images: { unoptimized: true },
 };
 

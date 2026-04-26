@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Task, TaskStatus, STATUS_LABEL, STATUS_COLOR } from '@/types/ipo';
+import { Task, TaskStatus, STATUS_LABEL, STATUS_COLOR, ProjectContact } from '@/types/ipo';
 
 interface WorkstreamSectionProps {
   workstreamName: string;
   workstreamId: string;
   tasks: Task[];
+  contacts?: ProjectContact[];
   defaultOpen?: boolean;
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
   onAddTask?: (workstreamId: string, title: string) => void;
@@ -84,6 +85,153 @@ function EditableCell({
 }
 
 /* 状态下拉选择 */
+function normalizePartyName(value: string): string[] {
+  const text = (value || '').trim();
+  if (!text || text === '无') return [];
+  const aliases: Record<string, string[]> = {
+    '华泰': ['保荐人H'],
+    'HTSC': ['保荐人H'],
+    'DB': ['保荐人D'],
+    '德银': ['保荐人D'],
+    'CMS': ['保荐人C'],
+    '招商': ['保荐人C'],
+    'DP': ['DP'],
+    '达维': ['DP'],
+    'FD': ['FD'],
+    '方达': ['FD'],
+    'HSF': ['HSF'],
+    'JT': ['JT'],
+    '竞天': ['JT'],
+    'KP': ['KP'],
+    '毕马威': ['KP'],
+    '公司': ['公司'],
+  };
+  const result = new Set<string>();
+  text.split(/[、,，/\s]+/).map(s => s.trim()).filter(Boolean).forEach((part) => {
+    result.add(part);
+    Object.entries(aliases).forEach(([key, values]) => {
+      if (part.includes(key) || key.includes(part)) values.forEach(v => result.add(v));
+    });
+  });
+  return Array.from(result);
+}
+
+function getCandidateContactsForTask(task: Task, contacts: ProjectContact[]): ProjectContact[] {
+  const institutions = new Set([
+    ...normalizePartyName(task.sponsor),
+    ...normalizePartyName(task.lawyer),
+    ...normalizePartyName(task.otherParty),
+  ]);
+  if (institutions.size === 0) return contacts;
+  const matched = contacts.filter((c) => institutions.has(c.institution) || institutions.has(c.department || ''));
+  return matched.length > 0 ? matched : contacts;
+}
+
+
+function getInstitutionOptions(contacts: ProjectContact[]): string[] {
+  const baseOrder = ['公司', '保荐人H', '保荐人D', '保荐人C', 'DP', 'FD', 'HSF', 'JT', 'KP'];
+  const set = new Set<string>(baseOrder);
+  contacts.forEach((c) => {
+    if (c.institution && c.institution.trim() && c.institution !== '无') set.add(c.institution.trim());
+  });
+  return Array.from(set).sort((a, b) => {
+    const ai = baseOrder.indexOf(a);
+    const bi = baseOrder.indexOf(b);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return a.localeCompare(b, 'zh-Hans-CN');
+  });
+}
+
+function parseInstitutionList(value?: string): string[] {
+  return (value || '')
+    .split(/[、,，/]+/)
+    .map((v) => v.trim())
+    .filter((v) => v && v !== '无');
+}
+
+function InstitutionMultiSelect({
+  label,
+  value,
+  options,
+  field,
+  onSave,
+}: {
+  label: string;
+  value?: string;
+  options: string[];
+  field: 'sponsor' | 'lawyer' | 'otherParty';
+  onSave: (value: string) => void;
+}) {
+  const selected = new Set(parseInstitutionList(value));
+  const toggle = (institution: string) => {
+    const next = new Set(selected);
+    if (next.has(institution)) next.delete(institution);
+    else next.add(institution);
+    onSave(Array.from(next).join('、'));
+  };
+
+  return (
+    <div className="mb-1.5" data-field={field}>
+      <div className="text-[10px] text-slate-400 mb-1">{label}</div>
+      <div className="flex flex-wrap gap-1">
+        {options.map((institution) => {
+          const active = selected.has(institution);
+          return (
+            <button
+              key={`${field}-${institution}`}
+              type="button"
+              onClick={() => toggle(institution)}
+              className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${active ? 'bg-brand-50 text-brand-700 border-brand-200' : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'}`}
+              title={`点击调整${label}分工`}
+            >
+              {institution}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AssigneeSelect({
+  task,
+  contacts,
+  onChange,
+}: {
+  task: Task;
+  contacts: ProjectContact[];
+  onChange: (updates: Partial<Task>) => void;
+}) {
+  const candidates = getCandidateContactsForTask(task, contacts);
+  const selected = task.assigneeId || '';
+
+  if (contacts.length === 0) {
+    return <span className="text-[11px] text-slate-300">未导入通讯录</span>;
+  }
+
+  return (
+    <select
+      value={selected}
+      onChange={(e) => {
+        const contact = contacts.find((c) => c.id === e.target.value);
+        onChange({ assigneeId: contact?.id || '', assignee: contact?.name || '' });
+      }}
+      className="w-full text-[11px] border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-400"
+      title={selected ? contacts.find(c => c.id === selected)?.email : '选择负责人'}
+    >
+      <option value="">未指定</option>
+      {candidates.length === contacts.length && (
+        <option value="" disabled>未匹配机构人员，显示全部</option>
+      )}
+      {candidates.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.isKeyContact ? '★ ' : ''}{c.name} - {c.institution}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function StatusSelect({
   value,
   onChange,
@@ -108,6 +256,7 @@ export default function WorkstreamSection({
   workstreamName, 
   workstreamId,
   tasks, 
+  contacts = [],
   defaultOpen = true, 
   onUpdateTask,
   onAddTask,
@@ -154,6 +303,7 @@ export default function WorkstreamSection({
     if (a.status !== 'blocked' && b.status === 'blocked') return 1;
     return 0;
   });
+  const institutionOptions = getInstitutionOptions(contacts);
 
   return (
     <div className="mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -260,6 +410,7 @@ export default function WorkstreamSection({
           <thead>
             <tr className="border-b border-slate-100 bg-white">
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">事项</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[260px]">分工</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">当前进度</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">下一步计划</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[200px]">备注</th>
@@ -284,8 +435,34 @@ export default function WorkstreamSection({
                       />
                     </div>
                     {parties && (
-                      <div className="text-[10px] text-slate-400 mt-0.5 px-1">{parties}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 px-1">当前分工：{parties}</div>
                     )}
+                  </td>
+                  <td className="py-2 px-3">
+                    <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
+                      机构访问按分工过滤：勾选后该机构后续可在外部门户看到此事项
+                    </div>
+                    <InstitutionMultiSelect
+                      label="保荐人"
+                      field="sponsor"
+                      value={task.sponsor || ''}
+                      options={institutionOptions}
+                      onSave={(value) => handleUpdate(task.id, { sponsor: value })}
+                    />
+                    <InstitutionMultiSelect
+                      label="律师/顾问"
+                      field="lawyer"
+                      value={task.lawyer || ''}
+                      options={institutionOptions}
+                      onSave={(value) => handleUpdate(task.id, { lawyer: value })}
+                    />
+                    <InstitutionMultiSelect
+                      label="其他参与方"
+                      field="otherParty"
+                      value={task.otherParty || ''}
+                      options={institutionOptions}
+                      onSave={(value) => handleUpdate(task.id, { otherParty: value })}
+                    />
                   </td>
                   <td className="py-2 px-3">
                     <EditableCell
@@ -313,12 +490,14 @@ export default function WorkstreamSection({
                     />
                   </td>
                   <td className="py-2 px-3">
-                    <EditableCell
-                      value={task.assignee || ''}
-                      onSave={v => handleUpdate(task.id, { assignee: v })}
-                      className="text-slate-600 text-xs"
-                      placeholder="指定负责人..."
+                    <AssigneeSelect
+                      task={task}
+                      contacts={contacts}
+                      onChange={updates => handleUpdate(task.id, updates)}
                     />
+                    {task.assignee && !task.assigneeId && (
+                      <div className="mt-1 text-[10px] text-amber-600">原：{task.assignee}</div>
+                    )}
                   </td>
                   <td className="py-2 px-3 text-center">
                     <StatusSelect

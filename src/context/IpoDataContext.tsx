@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { IpoProjectData, Workstream, Task, GanttCell } from '@/types/ipo';
+import { IpoProjectData, Workstream, Task, GanttCell, ProjectContact } from '@/types/ipo';
 import { supabase } from '@/lib/supabase';
 
 const LOCAL_STORAGE_KEY = 'ipo-local-data';
@@ -44,6 +44,7 @@ interface IpoDataContextType {
   syncToCloud: () => Promise<void>;
   pullFromCloud: () => Promise<void>;
   setImportedData: (data: IpoProjectData) => Promise<void>;
+  importContacts: (contacts: Omit<ProjectContact, 'id'>[]) => Promise<void>;
   importWorkstreamsAndTasks: (data: Pick<IpoProjectData, 'workstreams' | 'tasks'>) => Promise<void>;
   importGanttOnly: (data: Pick<IpoProjectData, 'ganttCells'>) => Promise<void>;
   resetToSeed: () => Promise<void>;
@@ -60,7 +61,7 @@ interface IpoDataContextType {
   removeTask: (taskId: string) => Promise<void>;
 }
 
-const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [] };
+const emptyData: IpoProjectData = { workstreams: [], tasks: [], ganttCells: [], contacts: [] };
 
 const IpoDataContext = createContext<IpoDataContextType | undefined>(undefined);
 
@@ -89,13 +90,19 @@ interface FetchResult {
 async function fetchProjectData(): Promise<FetchResult> {
   const projectId = await getOrCreateProjectId();
 
-  const [wsRes, taskRes] = await Promise.all([
+  const [wsRes, taskRes, contactRes] = await Promise.all([
     supabase.from('workstreams').select('*').eq('project_id', projectId).order('sort_order', { ascending: true }),
     supabase.from('tasks').select('*').eq('project_id', projectId).order('created_at', { ascending: true }),
+    supabase.from('project_contacts').select('*').eq('project_id', projectId).order('institution', { ascending: true }).order('name', { ascending: true }),
   ]);
 
   if (wsRes.error) throw new Error(`workstreams: ${wsRes.error.message}`);
   if (taskRes.error) throw new Error(`tasks: ${taskRes.error.message}`);
+  const contactsTableMissing = Boolean(
+    contactRes.error &&
+    (contactRes.error.message.includes('project_contacts') || contactRes.error.message.includes('does not exist'))
+  );
+  if (contactRes.error && !contactsTableMissing) throw new Error(`project_contacts: ${contactRes.error.message}`);
 
   // gantt_cells 可能超过1000条，需要分页获取全部
   const allGanttCells: any[] = [];
@@ -136,6 +143,7 @@ async function fetchProjectData(): Promise<FetchResult> {
     nextStep: r.next_step || '',
     remark: r.remark || '',
     assignee: r.assignee || '',
+    assigneeId: r.assignee_id || undefined,
     status: r.status || 'pending',
   }));
 
@@ -150,7 +158,18 @@ async function fetchProjectData(): Promise<FetchResult> {
       type: r.cell_type || 'event',
     }));
 
-  return { data: { workstreams, tasks, ganttCells }, lastSyncTime };
+  const contacts: ProjectContact[] = (contactsTableMissing ? [] : (contactRes.data || [])).map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    institution: r.institution || '',
+    role: r.role || '',
+    department: r.department || '',
+    phone: r.phone || '',
+    isKeyContact: Boolean(r.is_key_contact),
+  }));
+
+  return { data: { workstreams, tasks, ganttCells, contacts }, lastSyncTime };
 }
 
 async function deleteProjectGanttCells(projectId: string) {
@@ -243,6 +262,8 @@ async function persistFullDataset(projectId: string, sourceData: IpoProjectData)
     next_step: t.nextStep || null,
     remark: t.remark || null,
     status: t.status,
+    assignee: t.assignee || null,
+    assignee_id: t.assigneeId || null,
   }));
 
   if (taskRows.length > 0) {
@@ -354,6 +375,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
       workstreams: partialData.workstreams,
       tasks: partialData.tasks,
       ganttCells: [],
+      contacts: data.contacts,
     };
     await setImportedData(mergedData);
   };
@@ -364,7 +386,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     try {
       if (isLocalMode) {
         setData((prev) => {
-          const next = { ...prev, ganttCells: partialData.ganttCells };
+          const next = { ...prev, ganttCells: partialData.ganttCells, contacts: prev.contacts };
           saveLocalData(next);
           return next;
         });
@@ -405,6 +427,58 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const importContacts = async (contactsInput: Omit<ProjectContact, 'id'>[]) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const rows = contactsInput.map((c) => ({
+        id: crypto.randomUUID(),
+        project_id: undefined as string | undefined,
+        name: c.name,
+        email: c.email,
+        institution: c.institution || c.department || '',
+        department: c.department || c.institution || null,
+        role: c.role || null,
+        phone: c.phone || null,
+        is_key_contact: Boolean(c.isKeyContact),
+      }));
+
+      if (isLocalMode) {
+        setData((prev) => {
+          const importedContacts = rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            email: r.email,
+            institution: r.institution,
+            department: r.department || '',
+            role: r.role || '',
+            phone: r.phone || '',
+            isKeyContact: r.is_key_contact,
+          }));
+          const next = { ...prev, contacts: importedContacts };
+          saveLocalData(next);
+          return next;
+        });
+        return;
+      }
+
+      const projectId = await getOrCreateProjectId();
+      const dbRows = rows.map((r) => ({ ...r, project_id: projectId }));
+      const { error: deleteError } = await supabase.from('project_contacts').delete().eq('project_id', projectId);
+      if (deleteError) throw new Error(`project_contacts delete: ${deleteError.message}`);
+      if (dbRows.length > 0) {
+        const { error: insertError } = await supabase.from('project_contacts').insert(dbRows);
+        if (insertError) throw new Error(`project_contacts insert: ${insertError.message}`);
+      }
+      await refresh();
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetToSeed = async () => {
     setLoading(true);
     setError(null);
@@ -432,6 +506,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
         const next = {
           ...prev,
           tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
+          contacts: prev.contacts,
         };
         saveLocalData(next);
         return next;
@@ -449,6 +524,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
     if (updates.nextStep !== undefined) dbUpdates.next_step = updates.nextStep;
     if (updates.remark !== undefined) dbUpdates.remark = updates.remark;
     if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
+    if (updates.assigneeId !== undefined) dbUpdates.assignee_id = updates.assigneeId || null;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.workstreamId !== undefined) dbUpdates.workstream_id = updates.workstreamId;
 
@@ -643,6 +719,7 @@ export function IpoDataProvider({ children }: { children: ReactNode }) {
         syncToCloud,
         pullFromCloud,
         setImportedData,
+        importContacts,
         importWorkstreamsAndTasks,
         importGanttOnly,
         resetToSeed,

@@ -6,7 +6,7 @@ import WorkstreamSection from '@/components/WorkstreamSection';
 import KanbanBoard from '@/components/KanbanBoard';
 export default function WorkstreamsPage() {
   const { data, hasImported, updateTask, addWorkstream, removeWorkstream, renameWorkstream, addTask, removeTask } = useIpoData();
-  const { workstreams, tasks } = data;
+  const { workstreams, tasks, contacts } = data;
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [institutionFilter, setInstitutionFilter] = React.useState('');
   const [viewMode, setViewMode] = React.useState<'list' | 'kanban'>('list');
@@ -154,6 +154,7 @@ export default function WorkstreamsPage() {
               workstreamId={ws.id}
               workstreamName={ws.name}
               tasks={wsTasks}
+              contacts={data.contacts}
               onUpdateTask={updateTask}
               onAddTask={addTask}
               onRemoveTask={removeTask}

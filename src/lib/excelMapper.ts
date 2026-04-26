@@ -319,7 +319,7 @@ function mapWorksheet(sheet: XLSX.WorkSheet, options: GanttParseOptions): IpoPro
     }
   }
 
-  return { workstreams, tasks, ganttCells };
+  return { workstreams, tasks, ganttCells, contacts: [] };
 }
 
 function readWorkbook(file: File): Promise<XLSX.WorkBook> {

@@ -6,6 +6,17 @@ export interface Workstream {
   sortOrder: number;
 }
 
+export interface ProjectContact {
+  id: string;
+  name: string;
+  email: string;
+  institution: string;
+  role?: string;
+  department?: string;
+  phone?: string;
+  isKeyContact?: boolean;
+}
+
 export interface Task {
   id: string;
   workstreamId: string;
@@ -18,6 +29,7 @@ export interface Task {
   nextStep: string;
   remark?: string;
   assignee?: string;
+  assigneeId?: string;
   status: TaskStatus;
 }
 
@@ -33,6 +45,7 @@ export interface IpoProjectData {
   workstreams: Workstream[];
   tasks: Task[];
   ganttCells: GanttCell[];
+  contacts: ProjectContact[];
 }
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
