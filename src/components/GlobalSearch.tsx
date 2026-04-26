@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useIpoData } from '@/context/IpoDataContext';
 
 export default function GlobalSearch() {
+  const pathname = usePathname();
   const { data } = useIpoData();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -31,6 +33,7 @@ export default function GlobalSearch() {
   }, []);
 
   const results = useMemo(() => {
+    if (pathname?.startsWith('/portal')) return [];
     if (!query.trim()) return [];
     const q = query.toLowerCase();
     return data.tasks
@@ -47,7 +50,7 @@ export default function GlobalSearch() {
         const ws = data.workstreams.find(w => w.id === t.workstreamId);
         return { ...t, wsName: ws?.name || '' };
       });
-  }, [query, data]);
+  }, [query, data, pathname]);
 
   return (
     <div ref={ref} className="relative">

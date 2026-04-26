@@ -16,10 +16,13 @@ const NAV_ITEMS = [
 
 export default function NavBar() {
   const pathname = usePathname();
+  const isPortal = pathname?.startsWith('/portal');
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isLocalMode, setLocalMode, syncToCloud, pullFromCloud } = useIpoData();
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  if (isPortal) return null;
 
   const handleSyncToCloud = async () => {
     setSyncing(true); setSyncMsg(null);
