@@ -210,9 +210,150 @@ export async function verifyPortalToken(token: string): Promise<PortalPayload> {
   };
 }
 
+
+export type CreatePortalTaskInput = {
+  workstreamId?: string;
+  title?: string;
+  sponsor?: string;
+  lawyer?: string;
+  otherParty?: string;
+  currentProgress?: string;
+  currentBlocker?: string;
+  nextStep?: string;
+  remark?: string;
+  assigneeId?: string;
+  status?: TaskStatus;
+};
+
+function requireSponsorHEdit(session: PortalSession, action: string) {
+  if (!session.canEdit || session.institution !== '保荐人H') throw new Error(`当前机构没有${action}权限`);
+}
+
+async function assertTaskInProject(supabase: ReturnType<typeof getSupabaseAdmin>, projectId: string, taskId: string) {
+  const { data: taskRows, error: taskError } = await supabase
+    .from('tasks')
+    .select('id,project_id')
+    .eq('id', taskId)
+    .eq('project_id', projectId)
+    .limit(1);
+  if (taskError) throw new Error(`task query failed: ${taskError.message}`);
+  if (!taskRows?.[0]) throw new Error('事项不存在或不属于本项目');
+}
+
+async function normalizeAssignee(supabase: ReturnType<typeof getSupabaseAdmin>, projectId: string, assigneeId?: string) {
+  const cleanAssigneeId = String(assigneeId || '').trim();
+  if (!cleanAssigneeId) return { assignee_id: null, assignee: '' };
+  const { data: rows, error } = await supabase
+    .from('project_contacts')
+    .select('id,name')
+    .eq('id', cleanAssigneeId)
+    .eq('project_id', projectId)
+    .limit(1);
+  if (error) throw new Error(`contacts query failed: ${error.message}`);
+  const assignee = rows?.[0];
+  if (!assignee) throw new Error('负责人必须从项目联系人中选择');
+  return { assignee_id: assignee.id, assignee: assignee.name || '' };
+}
+
+export async function createPortalTask(token: string, input: CreatePortalTaskInput): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '新增事项');
+
+  const title = String(input.title || '').trim();
+  const workstreamId = String(input.workstreamId || '').trim();
+  if (!title) throw new Error('事项标题不能为空');
+  if (!workstreamId) throw new Error('请选择条线');
+
+  const allowedStatuses: TaskStatus[] = ['pending', 'in_progress', 'completed', 'blocked'];
+  const status = allowedStatuses.includes(input.status as TaskStatus) ? (input.status as TaskStatus) : 'pending';
+  const supabase = getSupabaseAdmin();
+
+  const { data: wsRows, error: wsError } = await supabase
+    .from('workstreams')
+    .select('id')
+    .eq('id', workstreamId)
+    .eq('project_id', session.projectId)
+    .limit(1);
+  if (wsError) throw new Error(`workstream query failed: ${wsError.message}`);
+  if (!wsRows?.[0]) throw new Error('条线不存在或不属于本项目');
+
+  const [{ data: maxRows, error: maxError }, assignee] = await Promise.all([
+    supabase.from('tasks').select('sort_order').eq('project_id', session.projectId).order('sort_order', { ascending: false }).limit(1),
+    normalizeAssignee(supabase, session.projectId, input.assigneeId),
+  ]);
+  if (maxError) throw new Error(`tasks query failed: ${maxError.message}`);
+  const nextSortOrder = Number(maxRows?.[0]?.sort_order || 0) + 1;
+
+  const { error: insertError } = await supabase.from('tasks').insert({
+    project_id: session.projectId,
+    workstream_id: workstreamId,
+    title,
+    sponsor: String(input.sponsor || '').trim(),
+    lawyer: String(input.lawyer || '').trim(),
+    other_party: String(input.otherParty || '').trim(),
+    current_progress: String(input.currentProgress || '').trim(),
+    current_blocker: String(input.currentBlocker || '').trim(),
+    next_step: String(input.nextStep || '').trim(),
+    remark: String(input.remark || '').trim(),
+    assignee_id: assignee.assignee_id,
+    assignee: assignee.assignee,
+    status,
+    sort_order: nextSortOrder,
+  });
+  if (insertError) throw new Error(`task insert failed: ${insertError.message}`);
+
+  return verifyPortalToken(token);
+}
+
+export async function createPortalGanttCell(token: string, taskId: string, input: Partial<Pick<GanttCell, 'date' | 'label' | 'type'>>): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '新增甘特图节点');
+  if (!taskId) throw new Error('缺少事项 ID');
+
+  const date = String(input.date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('日期格式无效');
+  const type = input.type || 'keynode';
+  if (!isEditableGanttType(type)) throw new Error('节点类型无效');
+
+  const supabase = getSupabaseAdmin();
+  await assertTaskInProject(supabase, session.projectId, taskId);
+
+  const { error: insertError } = await supabase.from('gantt_cells').insert({
+    task_id: taskId,
+    cell_date: date,
+    label: String(input.label || '').trim(),
+    cell_type: type,
+  });
+  if (insertError) throw new Error(`gantt cell insert failed: ${insertError.message}`);
+
+  return verifyPortalToken(token);
+}
+
+export async function deletePortalGanttCell(token: string, cellId: string): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '删除甘特图节点');
+  if (!cellId) throw new Error('缺少甘特节点 ID');
+
+  const supabase = getSupabaseAdmin();
+  const { data: rows, error } = await supabase
+    .from('gantt_cells')
+    .select('id,task_id')
+    .eq('id', cellId)
+    .limit(1);
+  if (error) throw new Error(`gantt cell query failed: ${error.message}`);
+  const cell = rows?.[0];
+  if (!cell) throw new Error('甘特节点不存在');
+  await assertTaskInProject(supabase, session.projectId, cell.task_id);
+
+  const { error: deleteError } = await supabase.from('gantt_cells').delete().eq('id', cellId);
+  if (deleteError) throw new Error(`gantt cell delete failed: ${deleteError.message}`);
+
+  return verifyPortalToken(token);
+}
+
 export async function updatePortalTask(token: string, taskId: string, updates: Partial<Record<EditableTaskField, string>>): Promise<PortalPayload> {
   const session = await verifyPortalSession(token);
-  if (!session.canEdit || session.institution !== '保荐人H') throw new Error('当前机构没有编辑权限');
+  requireSponsorHEdit(session, '编辑事项');
   if (!taskId) throw new Error('缺少事项 ID');
 
   const allowedStatuses: TaskStatus[] = ['pending', 'in_progress', 'completed', 'blocked'];
@@ -268,7 +409,7 @@ export async function updatePortalTask(token: string, taskId: string, updates: P
 
 export async function updatePortalGanttCell(token: string, cellId: string, updates: Partial<Pick<GanttCell, 'date' | 'label' | 'type'>>): Promise<PortalPayload> {
   const session = await verifyPortalSession(token);
-  if (!session.canEdit || session.institution !== '保荐人H') throw new Error('当前机构没有编辑甘特图权限');
+  requireSponsorHEdit(session, '编辑甘特图');
   if (!cellId) throw new Error('缺少甘特节点 ID');
 
   const dbUpdates: Record<string, string | null> = {};
@@ -295,14 +436,7 @@ export async function updatePortalGanttCell(token: string, cellId: string, updat
   const cell = rows?.[0];
   if (!cell) throw new Error('甘特节点不存在');
 
-  const { data: taskRows, error: taskError } = await supabase
-    .from('tasks')
-    .select('id,project_id')
-    .eq('id', cell.task_id)
-    .eq('project_id', session.projectId)
-    .limit(1);
-  if (taskError) throw new Error(`task query failed: ${taskError.message}`);
-  if (!taskRows?.[0]) throw new Error('不可编辑非本项目甘特节点');
+  await assertTaskInProject(supabase, session.projectId, cell.task_id);
 
   const { error: updateError } = await supabase.from('gantt_cells').update(dbUpdates).eq('id', cellId);
   if (updateError) throw new Error(`gantt cell update failed: ${updateError.message}`);
