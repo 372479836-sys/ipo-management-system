@@ -30,8 +30,12 @@ export function middleware(request: NextRequest) {
   const adminUser = process.env.ADMIN_BASIC_USER;
   const adminPassword = process.env.ADMIN_BASIC_PASSWORD;
 
-  // 本地开发或未配置密码时不拦截，避免影响构建/预览；生产环境请在 Vercel 配置这两个变量。
+  // 生产环境必须 fail-closed：如果 Vercel 漏配后台账号密码，不能放行内部管理页。
+  // 本地开发保留免认证，避免影响调试和构建。
   if (!adminUser || !adminPassword) {
+    if (process.env.NODE_ENV === 'production') {
+      return unauthorized();
+    }
     return NextResponse.next();
   }
 

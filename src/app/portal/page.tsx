@@ -183,7 +183,7 @@ function PortalContent() {
   };
   const addGanttMarker = async (taskId: string, date: string, type: 'start' | 'ddl' | 'keynode', label: string) => {
     if (!data.canEdit) return;
-    const res = await fetch('/api/portal/gantt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, cell: { taskId, date, type, label } }) });
+    const res = await fetch('/api/portal/gantt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, taskId, updates: { date, type, label } }) });
     const json = await res.json(); if (!res.ok || !json.ok) throw new Error(json.error || '新增节点失败'); setData(json);
   };
   const removeGanttCell = async (cellId: string) => {
