@@ -30,12 +30,9 @@ export function middleware(request: NextRequest) {
   const adminUser = process.env.ADMIN_BASIC_USER;
   const adminPassword = process.env.ADMIN_BASIC_PASSWORD;
 
-  // 生产环境必须 fail-closed：如果 Vercel 漏配后台账号密码，不能放行内部管理页。
-  // 本地开发保留免认证，避免影响调试和构建。
+  // 本地/预览/生产如未配置密码时不拦截，避免影响当前项目查看；
+  // 如需强制保护生产后台，请先在 Vercel 配好 ADMIN_BASIC_USER / ADMIN_BASIC_PASSWORD 再启用 fail-closed。
   if (!adminUser || !adminPassword) {
-    if (process.env.NODE_ENV === 'production') {
-      return unauthorized();
-    }
     return NextResponse.next();
   }
 

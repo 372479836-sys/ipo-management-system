@@ -22,9 +22,12 @@ assert(
 );
 assert(!portalPage.includes('cell: { taskId, date, type, label }'), 'portal should not send legacy cell wrapper for gantt POST');
 
-// Regression 2: Basic Auth must fail closed in production if credentials are missing.
-assert(middleware.includes("process.env.NODE_ENV === 'production'"), 'middleware should branch on NODE_ENV');
-assert(/if \(!adminUser \|\| !adminPassword\)[\s\S]*return unauthorized\(\)/.test(middleware), 'missing admin credentials should return unauthorized in production');
+// Regression 2: Basic Auth missing credentials currently remains fail-open by user request.
+assert(
+  middleware.includes('如需强制保护生产后台') &&
+  /if \(!adminUser \|\| !adminPassword\)[\s\S]*return NextResponse\.next\(\)/.test(middleware),
+  'missing admin credentials should remain fail-open until production credentials are configured'
+);
 
 // Regression 3: feedback route input should be explicit instead of accepting whole body as update/feedback payload.
 assert(feedbackRoute.includes('const feedback = body?.feedback && typeof body.feedback ==='), 'feedback POST should explicitly require body.feedback object');
