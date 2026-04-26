@@ -4,10 +4,11 @@ import Link from 'next/link';
 import ExportButtons from '@/components/ExportButtons';
 import DangerZoneClearData from '@/components/admin/DangerZoneClearData';
 import ContactImport from '@/components/admin/ContactImport';
+import TaskAllocationAdmin from '@/components/admin/TaskAllocationAdmin';
 import { useIpoData } from '@/context/IpoDataContext';
 
 export default function AdminPage() {
-  const { data } = useIpoData();
+  const { data, updateTask } = useIpoData();
 
   return (
     <div className="space-y-6">
@@ -30,6 +31,12 @@ export default function AdminPage() {
       </div>
 
       <ContactImport />
+
+      <TaskAllocationAdmin
+        workstreams={data.workstreams}
+        tasks={data.tasks}
+        onUpdateTask={updateTask}
+      />
 
       {/* 导出 */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

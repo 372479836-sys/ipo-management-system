@@ -128,105 +128,6 @@ function getCandidateContactsForTask(task: Task, contacts: ProjectContact[]): Pr
 }
 
 
-const INSTITUTION_GROUPS = {
-  sponsor: ['保荐人H', '保荐人C', '保荐人D'],
-  lawyer: ['DP', 'FD', 'HSF', 'JT'],
-  otherParty: ['KP', 'CIC'],
-} as const;
-
-function getInstitutionOptions(contacts: ProjectContact[]): Record<'sponsor' | 'lawyer' | 'otherParty', string[]> {
-  const fromContacts = new Set<string>();
-  contacts.forEach((c) => {
-    if (c.institution && c.institution.trim() && c.institution !== '无') fromContacts.add(c.institution.trim());
-  });
-
-  const ensureKnownAndImported = (base: readonly string[]) => {
-    const merged = new Set<string>(base);
-    base.forEach((institution) => {
-      if (fromContacts.has(institution)) merged.add(institution);
-    });
-    return Array.from(merged);
-  };
-
-  return {
-    sponsor: ensureKnownAndImported(INSTITUTION_GROUPS.sponsor),
-    lawyer: ensureKnownAndImported(INSTITUTION_GROUPS.lawyer),
-    otherParty: ensureKnownAndImported(INSTITUTION_GROUPS.otherParty),
-  };
-}
-
-
-function parseInstitutionList(value?: string): string[] {
-  return (value || '')
-    .split(/[、,，/]+/)
-    .map((v) => v.trim())
-    .filter((v) => v && v !== '无');
-}
-
-function InstitutionMultiSelect({
-  label,
-  value,
-  options,
-  field,
-  onSave,
-}: {
-  label: string;
-  value?: string;
-  options: string[];
-  field: 'sponsor' | 'lawyer' | 'otherParty';
-  onSave: (value: string) => void;
-}) {
-  const selected = new Set(parseInstitutionList(value));
-  const [editing, setEditing] = useState(false);
-
-  const toggle = (institution: string) => {
-    const next = new Set(selected);
-    if (next.has(institution)) next.delete(institution);
-    else next.add(institution);
-    onSave(Array.from(next).join('、'));
-  };
-
-  const selectedText = selected.size > 0 ? Array.from(selected).join('、') : '未分配';
-
-  return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2 py-1.5" data-field={field}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] text-slate-400">{label}</div>
-          <div className={`mt-0.5 truncate text-[11px] ${selected.size > 0 ? 'text-slate-700' : 'text-slate-300'}`} title={selectedText}>
-            {selectedText}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setEditing((v) => !v)}
-          className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-500 hover:border-brand-200 hover:text-brand-600"
-          title={`展开调整${label}分工`}
-        >
-          {editing ? '收起' : '调整'}
-        </button>
-      </div>
-      {editing && (
-        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
-          {options.map((institution) => {
-            const active = selected.has(institution);
-            return (
-              <button
-                key={`${field}-${institution}`}
-                type="button"
-                onClick={() => toggle(institution)}
-                className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${active ? 'bg-brand-50 text-brand-700 border-brand-300 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'}`}
-                title={`点击调整${label}分工`}
-              >
-                {active ? '✓ ' : ''}{institution}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function AssigneeSelect({
   task,
@@ -338,7 +239,6 @@ export default function WorkstreamSection({
     if (a.status !== 'blocked' && b.status === 'blocked') return 1;
     return 0;
   });
-  const institutionOptions = getInstitutionOptions(contacts);
 
   return (
     <div className="mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -444,8 +344,7 @@ export default function WorkstreamSection({
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-white">
-              <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">事项</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[260px]">分工</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[240px]">事项</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">当前进度</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[180px]">下一步计划</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium text-[11px] w-[200px]">备注</th>
@@ -472,32 +371,6 @@ export default function WorkstreamSection({
                     {parties && (
                       <div className="text-[10px] text-slate-400 mt-0.5 px-1">当前分工：{parties}</div>
                     )}
-                  </td>
-                  <td className="py-2 px-3">
-                    <div className="space-y-1.5">
-                    <InstitutionMultiSelect
-                      label="保荐人"
-                      field="sponsor"
-                      value={task.sponsor || ''}
-                      options={institutionOptions.sponsor}
-                      onSave={(value) => handleUpdate(task.id, { sponsor: value })}
-                    />
-                    <InstitutionMultiSelect
-                      label="律师/顾问"
-                      field="lawyer"
-                      value={task.lawyer || ''}
-                      options={institutionOptions.lawyer}
-                      onSave={(value) => handleUpdate(task.id, { lawyer: value })}
-                    />
-                    <InstitutionMultiSelect
-                      label="其他参与方"
-                      field="otherParty"
-                      value={task.otherParty || ''}
-                      options={institutionOptions.otherParty}
-                      onSave={(value) => handleUpdate(task.id, { otherParty: value })}
-                    />
-                    <div className="rounded-md bg-amber-50 px-2 py-1 text-[10px] leading-relaxed text-amber-700">机构访问按分工过滤；点击“调整”后再修改，避免误触。</div>
-                    </div>
                   </td>
                   <td className="py-2 px-3">
                     <EditableCell
