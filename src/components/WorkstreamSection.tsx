@@ -18,6 +18,7 @@ interface WorkstreamSectionProps {
   readOnly?: boolean;
   hideAssignee?: boolean;
   onUpdateFeedback?: (feedbackId: string, updates: { status: FeedbackStatus; adminReply?: string; applyToOfficial?: boolean }) => Promise<void>;
+  onCreateFeedback?: (taskId: string, input: { targetField: TaskFeedback['targetField']; suggestedValue: string; comment: string }) => Promise<void>;
 }
 
 /* 行内编辑单元格 */
@@ -155,6 +156,20 @@ function FeedbackDrawer({ task, feedbacks, onUpdateFeedback, onClose }: { task: 
   return <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-slate-900">反馈处理</h2><p className="mt-1 text-xs text-slate-500">{task.title}</p></div><button onClick={onClose} className="rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600">关闭</button></div><div className="mt-4 space-y-3">{feedbacks.length === 0 ? <p className="text-sm text-slate-400">暂无反馈。</p> : feedbacks.map((fb) => <div key={fb.id} className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-700">💬 {feedbackFieldLabel(fb.targetField)} · {fb.status}</span><span className="text-[11px] text-slate-400">{fb.institution} {fb.contactName ? `｜${fb.contactName}` : ''}</span></div><div className="mt-3 grid gap-2 text-xs"><div><span className="font-semibold text-slate-500">原内容：</span><p className="mt-1 whitespace-pre-wrap rounded-lg bg-white p-2 text-slate-600">{fb.originalValue || '-'}</p></div><div><span className="font-semibold text-slate-500">建议：</span><p className="mt-1 whitespace-pre-wrap rounded-lg bg-white p-2 text-slate-700">{fb.suggestedValue || '-'}</p></div>{fb.comment && <div><span className="font-semibold text-slate-500">说明：</span><p className="mt-1 whitespace-pre-wrap rounded-lg bg-white p-2 text-slate-700">{fb.comment}</p></div>}</div><textarea value={reply[fb.id] || fb.adminReply || ''} onChange={(e) => setReply({ ...reply, [fb.id]: e.target.value })} placeholder="处理回复（可选）" className="mt-3 min-h-16 w-full rounded-lg border border-amber-100 bg-white p-2 text-xs text-slate-700" /><div className="mt-3 flex flex-wrap gap-2"><button disabled={savingId === fb.id} onClick={() => handle(fb, 'accepted', true)} className="rounded-lg bg-green-600 px-3 py-1 text-xs text-white disabled:opacity-50">采纳并写入</button><button disabled={savingId === fb.id} onClick={() => handle(fb, 'accepted', false)} className="rounded-lg bg-green-50 px-3 py-1 text-xs text-green-700 disabled:opacity-50">采纳</button><button disabled={savingId === fb.id} onClick={() => handle(fb, 'resolved', false)} className="rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-700 disabled:opacity-50">标记已处理</button><button disabled={savingId === fb.id} onClick={() => handle(fb, 'rejected', false)} className="rounded-lg bg-red-50 px-3 py-1 text-xs text-red-600 disabled:opacity-50">驳回</button></div></div>)}</div></div>;
 }
 
+function CreateFeedbackDrawer({ task, onCreateFeedback, onClose }: { task: Task; onCreateFeedback: (taskId: string, input: { targetField: TaskFeedback['targetField']; suggestedValue: string; comment: string }) => Promise<void>; onClose: () => void }) {
+  const [targetField, setTargetField] = React.useState<TaskFeedback['targetField']>('current_progress');
+  const [suggestedValue, setSuggestedValue] = React.useState('');
+  const [comment, setComment] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const submit = async () => {
+    if (!suggestedValue.trim() && !comment.trim()) return;
+    setSaving(true);
+    try { await onCreateFeedback(task.id, { targetField, suggestedValue, comment }); onClose(); }
+    finally { setSaving(false); }
+  };
+  return <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-slate-900">提交反馈 / 评论</h2><p className="mt-1 text-xs text-slate-500">{task.title}</p></div><button onClick={onClose} className="rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600">关闭</button></div><div className="mt-4 space-y-3"><label className="block text-xs font-semibold text-slate-500">反馈字段</label><select value={targetField} onChange={(e) => setTargetField(e.target.value as TaskFeedback['targetField'])} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"><option value="current_progress">当前进度</option><option value="next_step">下一步计划</option><option value="remark">备注</option><option value="gantt_node">甘特节点</option></select><label className="block text-xs font-semibold text-slate-500">建议内容</label><textarea value={suggestedValue} onChange={(e) => setSuggestedValue(e.target.value)} placeholder="请填写建议修改或补充内容" className="min-h-28 w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700" /><label className="block text-xs font-semibold text-slate-500">补充说明</label><textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="可填写原因、附件说明或评论" className="min-h-20 w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700" /><button disabled={saving || (!suggestedValue.trim() && !comment.trim())} onClick={submit} className="w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">💬 提交反馈</button></div></div>;
+}
+
 function AssigneeSelect({
   task,
   contacts,
@@ -227,6 +242,7 @@ export default function WorkstreamSection({
   onRemoveWorkstream,
   feedbacks = [],
   onUpdateFeedback,
+  onCreateFeedback,
   readOnly = false,
   hideAssignee = false
 }: WorkstreamSectionProps) {
@@ -234,6 +250,7 @@ export default function WorkstreamSection({
   useEffect(() => { setOpen(defaultOpen ?? true); }, [defaultOpen]);
   const [addingTask, setAddingTask] = useState(false);
   const [feedbackTaskId, setFeedbackTaskId] = useState<string | null>(null);
+  const [createFeedbackTaskId, setCreateFeedbackTaskId] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingWsName, setEditingWsName] = useState(false);
   const [wsNameDraft, setWsNameDraft] = useState(workstreamName);
@@ -405,6 +422,9 @@ export default function WorkstreamSection({
                     {parties && (
                       <div className="text-[10px] text-slate-400 mt-0.5 px-1">当前分工：{parties}</div>
                     )}
+                    {onCreateFeedback && (
+                      <button onClick={() => setCreateFeedbackTaskId(task.id)} className="mt-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700 hover:bg-brand-100">💬 提交反馈 / 评论</button>
+                    )}
                     {taskFeedbacks.length > 0 && (
                       <button onClick={() => setFeedbackTaskId(task.id)} className="mt-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100">💬 反馈 {openFeedbackCount}/{taskFeedbacks.length}</button>
                     )}
@@ -474,6 +494,13 @@ export default function WorkstreamSection({
           feedbacks={feedbacks.filter(fb => fb.taskId === feedbackTaskId)}
           onUpdateFeedback={onUpdateFeedback}
           onClose={() => setFeedbackTaskId(null)}
+        />
+      )}
+      {createFeedbackTaskId && onCreateFeedback && (
+        <CreateFeedbackDrawer
+          task={tasks.find(t => t.id === createFeedbackTaskId)!}
+          onCreateFeedback={onCreateFeedback}
+          onClose={() => setCreateFeedbackTaskId(null)}
         />
       )}
     </div>
