@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createPortalTask, updatePortalTask } from '@/lib/portalAuth';
+import { createPortalTask, deletePortalTask, updatePortalTask } from '@/lib/portalAuth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,6 @@ export async function PATCH(request: Request) {
   }
 }
 
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -27,5 +26,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ...payload });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error?.message || '新增事项失败' }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const body = await request.json();
+    const token = typeof body?.token === 'string' ? body.token : '';
+    const taskId = typeof body?.taskId === 'string' ? body.taskId : '';
+    const payload = await deletePortalTask(token, taskId);
+    return NextResponse.json({ ok: true, ...payload });
+  } catch (error: any) {
+    return NextResponse.json({ ok: false, error: error?.message || '删除事项失败' }, { status: 400 });
   }
 }

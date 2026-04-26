@@ -27,7 +27,7 @@ export interface PortalPayload extends PortalSession {
   contacts: Pick<ProjectContact, 'id' | 'name' | 'email' | 'institution' | 'isKeyContact'>[];
 }
 
-export const EDITABLE_TASK_FIELDS = ['status', 'currentProgress', 'currentBlocker', 'nextStep', 'remark', 'assigneeId'] as const;
+export const EDITABLE_TASK_FIELDS = ['title', 'workstreamId', 'sponsor', 'lawyer', 'otherParty', 'status', 'currentProgress', 'currentBlocker', 'nextStep', 'remark', 'assigneeId'] as const;
 export type EditableTaskField = typeof EDITABLE_TASK_FIELDS[number];
 
 function getSupabaseAdmin() {
@@ -255,6 +255,17 @@ async function normalizeAssignee(supabase: ReturnType<typeof getSupabaseAdmin>, 
   return { assignee_id: assignee.id, assignee: assignee.name || '' };
 }
 
+async function assertWorkstreamInProject(supabase: ReturnType<typeof getSupabaseAdmin>, projectId: string, workstreamId: string) {
+  const { data: rows, error } = await supabase
+    .from('workstreams')
+    .select('id')
+    .eq('id', workstreamId)
+    .eq('project_id', projectId)
+    .limit(1);
+  if (error) throw new Error(`workstream query failed: ${error.message}`);
+  if (!rows?.[0]) throw new Error('条线不存在或不属于本项目');
+}
+
 export async function createPortalTask(token: string, input: CreatePortalTaskInput): Promise<PortalPayload> {
   const session = await verifyPortalSession(token);
   requireSponsorHEdit(session, '新增事项');
@@ -268,14 +279,7 @@ export async function createPortalTask(token: string, input: CreatePortalTaskInp
   const status = allowedStatuses.includes(input.status as TaskStatus) ? (input.status as TaskStatus) : 'pending';
   const supabase = getSupabaseAdmin();
 
-  const { data: wsRows, error: wsError } = await supabase
-    .from('workstreams')
-    .select('id')
-    .eq('id', workstreamId)
-    .eq('project_id', session.projectId)
-    .limit(1);
-  if (wsError) throw new Error(`workstream query failed: ${wsError.message}`);
-  if (!wsRows?.[0]) throw new Error('条线不存在或不属于本项目');
+  await assertWorkstreamInProject(supabase, session.projectId, workstreamId);
 
   const [{ data: maxRows, error: maxError }, assignee] = await Promise.all([
     supabase.from('tasks').select('sort_order').eq('project_id', session.projectId).order('sort_order', { ascending: false }).limit(1),
@@ -351,6 +355,72 @@ export async function deletePortalGanttCell(token: string, cellId: string): Prom
   return verifyPortalToken(token);
 }
 
+
+export type CreatePortalWorkstreamInput = { name?: string };
+
+export async function createPortalWorkstream(token: string, input: CreatePortalWorkstreamInput): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '新增大条线');
+  const name = String(input.name || '').trim();
+  if (!name) throw new Error('大条线名称不能为空');
+  const supabase = getSupabaseAdmin();
+  const { data: maxRows, error: maxError } = await supabase
+    .from('workstreams')
+    .select('sort_order')
+    .eq('project_id', session.projectId)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  if (maxError) throw new Error(`workstream query failed: ${maxError.message}`);
+  const nextSortOrder = Number(maxRows?.[0]?.sort_order || 0) + 1;
+  const { error: insertError } = await supabase.from('workstreams').insert({
+    project_id: session.projectId,
+    name,
+    sort_order: nextSortOrder,
+  });
+  if (insertError) throw new Error(`workstream insert failed: ${insertError.message}`);
+  return verifyPortalToken(token);
+}
+
+export async function updatePortalWorkstream(token: string, workstreamId: string, input: CreatePortalWorkstreamInput): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '调整大条线');
+  const name = String(input.name || '').trim();
+  if (!workstreamId) throw new Error('缺少大条线 ID');
+  if (!name) throw new Error('大条线名称不能为空');
+  const supabase = getSupabaseAdmin();
+  await assertWorkstreamInProject(supabase, session.projectId, workstreamId);
+  const { error: updateError } = await supabase.from('workstreams').update({ name }).eq('id', workstreamId).eq('project_id', session.projectId);
+  if (updateError) throw new Error(`workstream update failed: ${updateError.message}`);
+  return verifyPortalToken(token);
+}
+
+export async function deletePortalWorkstream(token: string, workstreamId: string): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '删除大条线');
+  if (!workstreamId) throw new Error('缺少大条线 ID');
+  const supabase = getSupabaseAdmin();
+  await assertWorkstreamInProject(supabase, session.projectId, workstreamId);
+  const { data: taskRows, error: taskError } = await supabase.from('tasks').select('id').eq('project_id', session.projectId).eq('workstream_id', workstreamId).limit(1);
+  if (taskError) throw new Error(`tasks query failed: ${taskError.message}`);
+  if (taskRows?.length) throw new Error('该大条线下仍有事项，请先调整或删除事项');
+  const { error: deleteError } = await supabase.from('workstreams').delete().eq('id', workstreamId).eq('project_id', session.projectId);
+  if (deleteError) throw new Error(`workstream delete failed: ${deleteError.message}`);
+  return verifyPortalToken(token);
+}
+
+export async function deletePortalTask(token: string, taskId: string): Promise<PortalPayload> {
+  const session = await verifyPortalSession(token);
+  requireSponsorHEdit(session, '删除事项');
+  if (!taskId) throw new Error('缺少事项 ID');
+  const supabase = getSupabaseAdmin();
+  await assertTaskInProject(supabase, session.projectId, taskId);
+  const { error: ganttDeleteError } = await supabase.from('gantt_cells').delete().eq('task_id', taskId);
+  if (ganttDeleteError) throw new Error(`linked gantt_cells delete failed: ${ganttDeleteError.message}`);
+  const { error: taskDeleteError } = await supabase.from('tasks').delete().eq('id', taskId).eq('project_id', session.projectId);
+  if (taskDeleteError) throw new Error(`task delete failed: ${taskDeleteError.message}`);
+  return verifyPortalToken(token);
+}
+
 export async function updatePortalTask(token: string, taskId: string, updates: Partial<Record<EditableTaskField, string>>): Promise<PortalPayload> {
   const session = await verifyPortalSession(token);
   requireSponsorHEdit(session, '编辑事项');
@@ -361,7 +431,18 @@ export async function updatePortalTask(token: string, taskId: string, updates: P
   for (const field of EDITABLE_TASK_FIELDS) {
     if (!(field in updates)) continue;
     const value = updates[field];
-    if (field === 'status') {
+    if (field === 'title') {
+      const title = String(value || '').trim();
+      if (!title) throw new Error('事项标题不能为空');
+      dbUpdates.title = title;
+    } else if (field === 'workstreamId') {
+      const workstreamId = String(value || '').trim();
+      if (!workstreamId) throw new Error('请选择条线');
+      dbUpdates.workstream_id = workstreamId;
+    } else if (field === 'sponsor') dbUpdates.sponsor = String(value || '').trim();
+    else if (field === 'lawyer') dbUpdates.lawyer = String(value || '').trim();
+    else if (field === 'otherParty') dbUpdates.other_party = String(value || '').trim();
+    else if (field === 'status') {
       if (!allowedStatuses.includes(value as TaskStatus)) throw new Error('状态值无效');
       dbUpdates.status = value || 'pending';
     } else if (field === 'currentProgress') dbUpdates.current_progress = value || '';
@@ -391,6 +472,8 @@ export async function updatePortalTask(token: string, taskId: string, updates: P
   if (contactsError) throw new Error(`contacts query failed: ${contactsError.message}`);
   const visibleIds = new Set(filterTasksForInstitution((taskRows || []).map(mapTask), (contactRows || []).map(mapContact), session.institution).map((task) => task.id));
   if (!visibleIds.has(taskId)) throw new Error('不可编辑非本机构可见事项');
+
+  if (dbUpdates.workstream_id) await assertWorkstreamInProject(supabase, session.projectId, dbUpdates.workstream_id);
 
   if (dbUpdates.assignee_id) {
     const assignee = (contactRows || []).find((row: any) => row.id === dbUpdates.assignee_id);
