@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useIpoData } from '@/context/IpoDataContext';
-import { TaskStatus, STATUS_LABEL, STATUS_COLOR } from '@/types/ipo';
+import { Task, TaskStatus, STATUS_LABEL, STATUS_COLOR } from '@/types/ipo';
 import StatCard from '@/components/StatCard';
 
 type FilterKey = 'completed' | 'in_progress' | 'blocked' | 'pending' | null;
@@ -22,27 +22,66 @@ const FILTER_LABELS: Record<string, string> = {
   pending: '待开始',
 };
 
+function normalizeInstitution(value?: string): string {
+  return (value || '').trim();
+}
+
+function isValidInstitution(value?: string): boolean {
+  const v = normalizeInstitution(value);
+  return v !== '' && v !== '无';
+}
+
+function taskMatchesInstitution(task: Task, institution: string): boolean {
+  if (!institution) return true;
+  return [task.sponsor, task.lawyer, task.otherParty]
+    .map(normalizeInstitution)
+    .includes(institution);
+}
+
 export default function DashboardPage() {
   const { data, hasImported } = useIpoData();
   const { workstreams, tasks, ganttCells } = data;
   const [activeFilter, setActiveFilter] = useState<FilterKey>(null);
+  const [institutionFilter, setInstitutionFilter] = useState('');
+
+  const allInstitutions = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach(t => {
+      if (isValidInstitution(t.sponsor)) set.add(normalizeInstitution(t.sponsor));
+      if (isValidInstitution(t.lawyer)) set.add(normalizeInstitution(t.lawyer));
+      if (isValidInstitution(t.otherParty)) set.add(normalizeInstitution(t.otherParty));
+    });
+    return Array.from(set).sort();
+  }, [tasks]);
+
+  const scopedTasks = useMemo(() => {
+    return tasks.filter(t => taskMatchesInstitution(t, institutionFilter));
+  }, [tasks, institutionFilter]);
+
+  const scopedTaskIds = useMemo(() => new Set(scopedTasks.map(t => t.id)), [scopedTasks]);
+
+  const scopedWorkstreams = useMemo(() => {
+    if (!institutionFilter) return workstreams;
+    const wsIds = new Set(scopedTasks.map(t => t.workstreamId));
+    return workstreams.filter(ws => wsIds.has(ws.id));
+  }, [workstreams, scopedTasks, institutionFilter]);
 
   const stats = useMemo(() => ({
-    total: tasks.length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    inProgress: tasks.filter(t => t.status === 'in_progress').length,
-    blocked: tasks.filter(t => t.status === 'blocked').length,
-    pending: tasks.filter(t => t.status === 'pending').length,
-  }), [tasks]);
+    total: scopedTasks.length,
+    completed: scopedTasks.filter(t => t.status === 'completed').length,
+    inProgress: scopedTasks.filter(t => t.status === 'in_progress').length,
+    blocked: scopedTasks.filter(t => t.status === 'blocked').length,
+    pending: scopedTasks.filter(t => t.status === 'pending').length,
+  }), [scopedTasks]);
 
   const wsStats = useMemo(() => {
-    return workstreams.map(ws => ({
+    return scopedWorkstreams.map(ws => ({
       ...ws,
-      total: tasks.filter(t => t.workstreamId === ws.id).length,
-      completed: tasks.filter(t => t.workstreamId === ws.id && t.status === 'completed').length,
-      blocked: tasks.filter(t => t.workstreamId === ws.id && t.status === 'blocked').length,
+      total: scopedTasks.filter(t => t.workstreamId === ws.id).length,
+      completed: scopedTasks.filter(t => t.workstreamId === ws.id && t.status === 'completed').length,
+      blocked: scopedTasks.filter(t => t.workstreamId === ws.id && t.status === 'blocked').length,
     }));
-  }, [workstreams, tasks]);
+  }, [scopedWorkstreams, scopedTasks]);
 
   // DDL预警：未来7天内的ddl/milestone/keynode
   const ddlWarnings = useMemo(() => {
@@ -54,6 +93,7 @@ export default function DashboardPage() {
     const importantTypes = ['ddl', 'milestone', 'keynode'];
     return ganttCells
       .filter(gc => {
+        if (!scopedTaskIds.has(gc.taskId)) return false;
         if (!importantTypes.includes(gc.type || '')) return false;
         const d = new Date(gc.date);
         return d >= today && d <= in7;
@@ -72,16 +112,16 @@ export default function DashboardPage() {
         };
       })
       .sort((a, b) => a.diffDays - b.diffDays);
-  }, [ganttCells, tasks, workstreams]);
+  }, [ganttCells, tasks, workstreams, scopedTaskIds]);
 
   const filteredTasks = useMemo(() => {
     if (!activeFilter) return [];
     const status = FILTER_MAP[activeFilter];
-    return tasks.filter(t => t.status === status).map(t => {
+    return scopedTasks.filter(t => t.status === status).map(t => {
       const ws = workstreams.find(w => w.id === t.workstreamId);
       return { ...t, wsName: ws?.name || '' };
     });
-  }, [activeFilter, tasks, workstreams]);
+  }, [activeFilter, scopedTasks, workstreams]);
 
   const toggleFilter = (key: FilterKey) => {
     setActiveFilter(prev => prev === key ? null : key);
@@ -90,7 +130,33 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-800">Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-slate-800">Dashboard</h1>
+          {allInstitutions.length > 0 && (
+            <select
+              value={institutionFilter}
+              onChange={e => {
+                setInstitutionFilter(e.target.value);
+                setActiveFilter(null);
+              }}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-400"
+            >
+              <option value="">全部机构</option>
+              {allInstitutions.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          {institutionFilter && (
+            <>
+              <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-normal text-brand-600">
+                {institutionFilter}
+              </span>
+              <button
+                onClick={() => { setInstitutionFilter(''); setActiveFilter(null); }}
+                className="text-[11px] text-slate-500 hover:text-red-500 underline"
+              >清除筛选</button>
+            </>
+          )}
+        </div>
         {hasImported && (
           <span className="text-[11px] text-green-600 bg-green-50 px-2 py-1 rounded-full">已加载导入数据</span>
         )}
@@ -184,7 +250,7 @@ export default function DashboardPage() {
           <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
             <span className="text-red-500">⏰</span>
             <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              未来7天 DDL / 里程碑（{ddlWarnings.length}项）
+              未来7天 DDL / 里程碑（{ddlWarnings.length}项{institutionFilter ? ` · ${institutionFilter}` : ''}）
             </h2>
           </div>
           <div className="divide-y divide-slate-100">
@@ -224,7 +290,7 @@ export default function DashboardPage() {
       {/* 各条线统计 — 可点击跳转 */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200">
-          <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">各条线事项分布</h2>
+          <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">各条线事项分布{institutionFilter ? ` · ${institutionFilter}` : ''}</h2>
         </div>
         <div className="p-4">
           <div className="space-y-3">

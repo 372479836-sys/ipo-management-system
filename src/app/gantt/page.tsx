@@ -187,7 +187,7 @@ export default function GanttPage() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-amber-500" /> 关键节点</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-brand-500" /> 事件</span>
               <span className="text-slate-300">|</span>
-              右键单元格可标注节点 · 点击标注可删除 · 拖拽标注可调整日期
+              左键点击日期格可标记关键节点，并填写该关键节点对应信息 · 点击已有标注可查看/删除 · 拖拽标注可调整日期
             </span>
           </div>
         </>
